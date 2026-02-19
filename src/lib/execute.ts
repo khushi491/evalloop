@@ -14,12 +14,66 @@ import {
   buildPatcherMessages,
 } from "./prompts";
 import { applyPatch } from "./policy";
+import {
+  simulateRunner,
+  simulateEvaluator,
+  simulatePatcher,
+} from "./simulate";
+
+function isSimulation(): boolean {
+  return process.env.USE_SIMULATION === "true";
+}
+
+async function runRunner(
+  attemptIndex: number,
+  taskText: string,
+  policy: Policy
+): Promise<string> {
+  if (isSimulation()) {
+    return simulateRunner(attemptIndex, taskText, policy);
+  }
+  const messages = buildRunnerMessages(taskText, policy);
+  const resp = await chatCompletion(messages, { temperature: 0.4 });
+  return resp.content;
+}
+
+async function runEvaluator(
+  attemptIndex: number,
+  taskText: string,
+  outputText: string,
+  policy: Policy
+): Promise<EvaluatorOutput> {
+  if (isSimulation()) {
+    return simulateEvaluator(attemptIndex);
+  }
+  const messages = buildEvaluatorMessages(taskText, outputText, policy);
+  const raw = await chatCompletionJSON<EvaluatorOutput>(messages, {
+    temperature: 0.1,
+  });
+  return EvaluatorOutputSchema.parse(raw);
+}
+
+async function runPatcher(
+  attemptIndex: number,
+  taskText: string,
+  outputText: string,
+  evaluation: EvaluatorOutput,
+  policy: Policy
+): Promise<PatchOutput> {
+  if (isSimulation()) {
+    return simulatePatcher(attemptIndex);
+  }
+  const messages = buildPatcherMessages(taskText, outputText, evaluation, policy);
+  const raw = await chatCompletionJSON<PatchOutput>(messages, {
+    temperature: 0.2,
+  });
+  return PatchOutputSchema.parse(raw);
+}
 
 export async function executeRun(runId: string) {
   const run = await prisma.projectRun.findUnique({ where: { id: runId } });
   if (!run) throw new Error(`Run ${runId} not found`);
 
-  // Clean up previous attempts/policies so re-runs don't hit unique constraints
   await prisma.attempt.deleteMany({ where: { runId } });
   await prisma.policyVersion.deleteMany({ where: { runId } });
 
@@ -40,21 +94,14 @@ export async function executeRun(runId: string) {
 
   try {
     for (let i = 1; i <= run.maxAttempts; i++) {
-      const runnerMessages = buildRunnerMessages(run.taskText, currentPolicy);
-      const runnerResp = await chatCompletion(runnerMessages, {
-        temperature: 0.4,
-      });
-      const outputText = runnerResp.content;
+      const outputText = await runRunner(i, run.taskText, currentPolicy);
 
-      const evalMessages = buildEvaluatorMessages(
+      const evaluation = await runEvaluator(
+        i,
         run.taskText,
         outputText,
         currentPolicy
       );
-      const evalRaw = await chatCompletionJSON<EvaluatorOutput>(evalMessages, {
-        temperature: 0.1,
-      });
-      const evaluation = EvaluatorOutputSchema.parse(evalRaw);
 
       const scoreTotal = Math.round(evaluation.score_total);
 
@@ -81,16 +128,13 @@ export async function executeRun(runId: string) {
       }
 
       if (i < run.maxAttempts) {
-        const patchMessages = buildPatcherMessages(
+        const patch = await runPatcher(
+          i,
           run.taskText,
           outputText,
           evaluation,
           currentPolicy
         );
-        const patchRaw = await chatCompletionJSON<PatchOutput>(patchMessages, {
-          temperature: 0.2,
-        });
-        const patch = PatchOutputSchema.parse(patchRaw);
         currentPolicy = applyPatch(currentPolicy, patch);
 
         await prisma.policyVersion.create({

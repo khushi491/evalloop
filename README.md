@@ -57,16 +57,21 @@ pnpm install
 cp .env.example .env
 ```
 
-Edit `.env` with your API key:
+Edit `.env`:
 
 ```
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
 DATABASE_URL="file:./dev.db"
+
+# Simulation mode — works without an API key!
+USE_SIMULATION=true
 ```
 
-**Provider flexibility**: Change `OPENAI_BASE_URL` to point to any OpenAI-compatible endpoint (Anthropic via proxy, Azure, Ollama, etc.).
+**Simulation mode** (`USE_SIMULATION=true`): The app runs with realistic built-in mock data — no API key needed. The demo preset shows score progression from 52 to 92+ across 4 attempts with real-looking outputs, violations, and policy patches. Perfect for demos and hackathon judging.
+
+**Real LLM mode** (`USE_SIMULATION=false`): Set a valid `OPENAI_API_KEY` and the app calls the LLM for real. Change `OPENAI_BASE_URL` to point to any OpenAI-compatible endpoint (Anthropic via proxy, Azure, Ollama, etc.).
 
 ### Initialize Database
 
@@ -133,6 +138,7 @@ src/
     ├── prompts.ts         # Runner/Evaluator/Patcher prompt templates
     ├── policy.ts          # Policy patch application
     ├── schemas.ts         # Zod schemas + types
+    ├── simulate.ts        # Simulation mode mock data
     └── execute.ts         # Core execution loop
 ```
 
