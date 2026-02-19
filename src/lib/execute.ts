@@ -19,6 +19,10 @@ export async function executeRun(runId: string) {
   const run = await prisma.projectRun.findUnique({ where: { id: runId } });
   if (!run) throw new Error(`Run ${runId} not found`);
 
+  // Clean up previous attempts/policies so re-runs don't hit unique constraints
+  await prisma.attempt.deleteMany({ where: { runId } });
+  await prisma.policyVersion.deleteMany({ where: { runId } });
+
   await prisma.projectRun.update({
     where: { id: runId },
     data: { status: "running" },
@@ -26,23 +30,13 @@ export async function executeRun(runId: string) {
 
   let currentPolicy: Policy = { ...DEFAULT_POLICY };
 
-  const existingPolicies = await prisma.policyVersion.findMany({
-    where: { runId },
-    orderBy: { version: "desc" },
-    take: 1,
+  await prisma.policyVersion.create({
+    data: {
+      runId,
+      version: 1,
+      policyJson: JSON.stringify(currentPolicy),
+    },
   });
-
-  if (existingPolicies.length > 0) {
-    currentPolicy = JSON.parse(existingPolicies[0].policyJson) as Policy;
-  } else {
-    await prisma.policyVersion.create({
-      data: {
-        runId,
-        version: 1,
-        policyJson: JSON.stringify(currentPolicy),
-      },
-    });
-  }
 
   try {
     for (let i = 1; i <= run.maxAttempts; i++) {
@@ -62,12 +56,14 @@ export async function executeRun(runId: string) {
       });
       const evaluation = EvaluatorOutputSchema.parse(evalRaw);
 
+      const scoreTotal = Math.round(evaluation.score_total);
+
       await prisma.attempt.create({
         data: {
           runId,
           index: i,
           outputText,
-          scoreTotal: evaluation.score_total,
+          scoreTotal,
           scoreBreakdownJson: JSON.stringify(evaluation.score_breakdown),
           violationsJson: JSON.stringify({
             violations: evaluation.violations,
@@ -76,7 +72,7 @@ export async function executeRun(runId: string) {
         },
       });
 
-      if (evaluation.score_total >= run.targetScore) {
+      if (scoreTotal >= run.targetScore) {
         await prisma.projectRun.update({
           where: { id: runId },
           data: { status: "completed" },

@@ -18,16 +18,16 @@ export const ViolationSchema = z.object({
 });
 
 export const EvaluatorOutputSchema = z.object({
-  score_total: z.number().min(0).max(100),
+  score_total: z.number(),
   score_breakdown: z.object({
-    constraint_coverage: z.number().min(0).max(5),
-    clarity_structure: z.number().min(0).max(5),
-    tone: z.number().min(0).max(5),
-    safety: z.number().min(0).max(5),
-    tool_correctness: z.number().min(0).max(5),
+    constraint_coverage: z.number(),
+    clarity_structure: z.number(),
+    tone: z.number(),
+    safety: z.number(),
+    tool_correctness: z.number(),
   }),
-  violations: z.array(ViolationSchema),
-  notes: z.string(),
+  violations: z.array(ViolationSchema).default([]),
+  notes: z.string().default(""),
 });
 export type EvaluatorOutput = z.infer<typeof EvaluatorOutputSchema>;
 

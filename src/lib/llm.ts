@@ -77,6 +77,21 @@ export async function chatCompletion(
 /**
  * Call LLM and parse the response as JSON. Retries once on parse failure.
  */
+function extractJSON(text: string): string {
+  // Try to find JSON inside markdown code fences
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch) return fenceMatch[1].trim();
+
+  // Try to find a top-level JSON object
+  const braceStart = text.indexOf("{");
+  const braceEnd = text.lastIndexOf("}");
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    return text.slice(braceStart, braceEnd + 1);
+  }
+
+  return text.trim();
+}
+
 export async function chatCompletionJSON<T>(
   messages: ChatMessage[],
   options?: { temperature?: number; maxTokens?: number }
@@ -84,12 +99,15 @@ export async function chatCompletionJSON<T>(
   for (let attempt = 0; attempt < 2; attempt++) {
     const resp = await chatCompletion(messages, options);
     try {
-      const cleaned = resp.content
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
+      const cleaned = extractJSON(resp.content);
       return JSON.parse(cleaned) as T;
-    } catch {
+    } catch (parseErr) {
+      console.error(
+        `[llm] JSON parse attempt ${attempt + 1} failed:`,
+        parseErr instanceof Error ? parseErr.message : parseErr,
+        "Raw (first 300 chars):",
+        resp.content.slice(0, 300)
+      );
       if (attempt === 1) {
         throw new Error(
           `LLM returned invalid JSON after 2 attempts. Raw: ${resp.content.slice(0, 500)}`

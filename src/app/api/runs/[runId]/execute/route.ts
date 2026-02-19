@@ -11,6 +11,7 @@ export async function POST(
     const result = await executeRun(runId);
     return NextResponse.json(result);
   } catch (err) {
+    console.error("[execute] Error for run", runId, err);
     const message =
       err instanceof Error ? err.message : "Execution failed";
     return NextResponse.json({ error: message }, { status: 500 });
