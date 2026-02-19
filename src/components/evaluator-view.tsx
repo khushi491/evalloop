@@ -8,6 +8,7 @@ interface Attempt {
   scoreTotal: number | null;
   scoreBreakdown: Record<string, number> | null;
   violations: { type: string; message: string; severity: string }[] | null;
+  notes: string | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -74,6 +75,20 @@ export function EvaluatorView({ attempt }: { attempt: Attempt }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Evaluator Notes */}
+      {attempt.notes && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Evaluator Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm leading-relaxed text-zinc-300">
+              {attempt.notes}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Violations */}
       <Card>

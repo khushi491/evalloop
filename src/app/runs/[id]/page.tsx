@@ -27,6 +27,7 @@ interface Attempt {
   scoreTotal: number | null;
   scoreBreakdown: Record<string, number> | null;
   violations: { type: string; message: string; severity: string }[] | null;
+  notes: string | null;
 }
 
 interface PolicyVersionData {
@@ -77,6 +78,12 @@ export default function RunDetailPage() {
   useEffect(() => {
     fetchRun();
   }, [fetchRun]);
+
+  useEffect(() => {
+    if (!run || run.status !== "running") return;
+    const interval = setInterval(fetchRun, 2000);
+    return () => clearInterval(interval);
+  }, [run?.status, fetchRun]);
 
   async function handleExecute() {
     setExecuting(true);
@@ -161,6 +168,13 @@ export default function RunDetailPage() {
           </Button>
         </div>
       </div>
+
+      {run.status === "running" && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-800 bg-amber-950/50 px-4 py-3 text-sm text-amber-300">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Self-improving loop is running... This page will auto-update.
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-800 bg-red-950 px-4 py-3 text-sm text-red-300">

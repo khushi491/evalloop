@@ -27,15 +27,24 @@ export async function GET(
     targetScore: run.targetScore,
     status: run.status,
     createdAt: run.createdAt.toISOString(),
-    attempts: run.attempts.map((a) => ({
-      id: a.id,
-      index: a.index,
-      outputText: a.outputText,
-      createdAt: a.createdAt.toISOString(),
-      scoreTotal: a.scoreTotal,
-      scoreBreakdown: a.scoreBreakdownJson ? JSON.parse(a.scoreBreakdownJson) : null,
-      violations: a.violationsJson ? JSON.parse(a.violationsJson) : null,
-    })),
+    attempts: run.attempts.map((a) => {
+      const violData = a.violationsJson
+        ? JSON.parse(a.violationsJson)
+        : null;
+      const isWrapped = violData && "violations" in violData;
+      return {
+        id: a.id,
+        index: a.index,
+        outputText: a.outputText,
+        createdAt: a.createdAt.toISOString(),
+        scoreTotal: a.scoreTotal,
+        scoreBreakdown: a.scoreBreakdownJson
+          ? JSON.parse(a.scoreBreakdownJson)
+          : null,
+        violations: isWrapped ? violData.violations : violData,
+        notes: isWrapped ? violData.notes : null,
+      };
+    }),
     policyVersions: run.policyVersions.map((p) => ({
       id: p.id,
       version: p.version,

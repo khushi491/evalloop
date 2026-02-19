@@ -69,7 +69,10 @@ export async function executeRun(runId: string) {
           outputText,
           scoreTotal: evaluation.score_total,
           scoreBreakdownJson: JSON.stringify(evaluation.score_breakdown),
-          violationsJson: JSON.stringify(evaluation.violations),
+          violationsJson: JSON.stringify({
+            violations: evaluation.violations,
+            notes: evaluation.notes,
+          }),
         },
       });
 
@@ -137,17 +140,24 @@ async function loadRunDetail(runId: string) {
     targetScore: run.targetScore,
     status: run.status,
     createdAt: run.createdAt.toISOString(),
-    attempts: run.attempts.map((a) => ({
-      id: a.id,
-      index: a.index,
-      outputText: a.outputText,
-      createdAt: a.createdAt.toISOString(),
-      scoreTotal: a.scoreTotal,
-      scoreBreakdown: a.scoreBreakdownJson
-        ? JSON.parse(a.scoreBreakdownJson)
-        : null,
-      violations: a.violationsJson ? JSON.parse(a.violationsJson) : null,
-    })),
+    attempts: run.attempts.map((a) => {
+      const violData = a.violationsJson
+        ? JSON.parse(a.violationsJson)
+        : null;
+      const isWrapped = violData && "violations" in violData;
+      return {
+        id: a.id,
+        index: a.index,
+        outputText: a.outputText,
+        createdAt: a.createdAt.toISOString(),
+        scoreTotal: a.scoreTotal,
+        scoreBreakdown: a.scoreBreakdownJson
+          ? JSON.parse(a.scoreBreakdownJson)
+          : null,
+        violations: isWrapped ? violData.violations : violData,
+        notes: isWrapped ? violData.notes : null,
+      };
+    }),
     policyVersions: run.policyVersions.map((p) => ({
       id: p.id,
       version: p.version,
