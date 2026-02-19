@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ProjectRun {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  title       String
+  taskText    String
+  maxAttempts Int      @default(5)
+  targetScore Int      @default(90)
+  status      String   @default("pending")
+
+  attempts       Attempt[]
+  policyVersions PolicyVersion[]
+}
+
+model Attempt {
+  id                 String   @id @default(cuid())
+  runId              String
+  index              Int
+  outputText         String
+  createdAt          DateTime @default(now())
+  scoreTotal         Int?
+  scoreBreakdownJson String?
+  violationsJson     String?
+
+  run ProjectRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, index])
+}
+
+model PolicyVersion {
+  id         String   @id @default(cuid())
+  runId      String
+  version    Int
+  policyJson String
+  createdAt  DateTime @default(now())
+
+  run ProjectRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, version])
+}
