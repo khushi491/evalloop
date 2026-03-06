@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String           @id @default(cuid())
+  email         String           @unique
+  name          String?
+  createdAt     DateTime         @default(now())
+
+  socialAccounts SocialAccount[]
+  draftPosts     DraftPost[]
+  scheduledPosts ScheduledPost[]
+  postHistory    PostHistory[]
+}
+
+model SocialAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  platform     String
+  accessToken  String
+  refreshToken String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NewsSource {
+  id           String        @id @default(cuid())
+  name         String
+  url          String
+  enabled      Boolean       @default(true)
+  lastFetchedAt DateTime?
+
+  articles NewsArticle[]
+}
+
+model NewsArticle {
+  id          String   @id @default(cuid())
+  sourceId    String
+  title       String
+  url         String   @unique
+  summary     String?
+  content     String?
+  publishedAt DateTime
+  tags        String[]
+
+  source     NewsSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  draftPosts DraftPost[]
+}
+
+model DraftPost {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String?
+  content   String
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article NewsArticle? @relation(fields: [articleId], references: [id])
+}
+
+model ScheduledPost {
+  id           String   @id @default(cuid())
+  userId       String
+  content      String
+  scheduledFor DateTime
+  status       String   @default("scheduled")
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PostHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  content      String
+  xPostUrl     String?
+  publishedAt  DateTime
+  resultStatus String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
