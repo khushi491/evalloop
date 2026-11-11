@@ -1,6 +1,6 @@
 # EvalLoop
 
-A self-improving agent that runs a task, evaluates its own output, patches its "policy," and re-runs to improve the score. Built for hackathons to demonstrate autonomous agent self-improvement.
+EvalLoop is a self-improving agent system. It runs a task, evaluates its own output, patches its policy, and runs the task again to improve the score.
 
 ## How It Works
 
@@ -40,7 +40,7 @@ Loop runs until: score >= target (default 90) OR max attempts (default 5)
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (required by Next.js 16)
 - pnpm
 
 ### Install
@@ -69,7 +69,7 @@ DATABASE_URL="file:./dev.db"
 USE_SIMULATION=true
 ```
 
-**Simulation mode** (`USE_SIMULATION=true`): The app runs with realistic built-in mock data — no API key needed. The demo preset shows score progression from 52 to 92+ across 4 attempts with real-looking outputs, violations, and policy patches. Perfect for demos and hackathon judging.
+**Simulation mode** (`USE_SIMULATION=true`): The app runs without an API key. The runner, evaluator, and patcher return scripted responses from `src/lib/simulate.ts` instead of calling a model. Quick Demo uses that script for the double-charge preset: scores of 52, then 72, then 84, then 92. The default target score is 90, so the loop stops on the fourth attempt at 92. Those scores are written into the simulator. They are not measured LLM results. If the target is set above 92, the same script has a fifth score of 96; Quick Demo does not reach it.
 
 **Real LLM mode** (`USE_SIMULATION=false`): Set a valid `OPENAI_API_KEY` and the app calls the LLM for real. Change `OPENAI_BASE_URL` to point to any OpenAI-compatible endpoint (Anthropic via proxy, Azure, Ollama, etc.).
 
@@ -104,7 +104,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 Task: Write a support reply to a customer who is angry about being charged twice. The agent must apologize once, not admit fault, ask for order ID + last 4 of card, offer refund/credit options, stay under 90 words, and maintain a calm confident tone.
 
-The agent typically starts at 60-75 and improves to 85-95+ across 3-5 attempts by adding specific rules like "count words before finalizing" and "explicitly mention both refund AND credit."
+In simulation mode this preset does not call a model. Quick Demo follows the scripted scores above (52 → 72 → 84 → 92) and stops at 92 because that meets the default target of 90. The scripted policy patches add rules such as counting words before finalizing and explicitly offering both a refund and account credit. Live model behavior is only used when `USE_SIMULATION` is not `true`. This repository does not publish measured scores for that mode.
 
 ## API Endpoints
 
