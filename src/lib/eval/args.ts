@@ -2,10 +2,14 @@ export interface EvalArgs {
   tasks: string[] | null;
   runs: number;
   maxCost: number;
+  /** Null means this invocation has no call cap. */
+  maxCalls: number | null;
+  delayMs: number;
   maxAttempts: number;
   target: number;
   dryRun: boolean;
   outDir: string;
+  resume: string | null;
   help: boolean;
 }
 
@@ -25,15 +29,23 @@ Options:
   --tasks id,id        Run these task ids (default: every fixture).
   --runs N             Repeat each task N times (default: 1).
   --max-attempts N     Improvement attempts per training task (default: 3).
-  --target N           Stop a training task when the judge score reaches N (default: 90).
-  --max-cost USD       Abort before the next model call once estimated spend reaches this (default: 3).
+  --target N           Stop a training task when the blended total reaches N and every hard check passes (default: 90).
+  --max-cost USD       Abort before the next model call once this run's estimated spend reaches this (default: 3).
+  --max-calls N        Abort before the next model call once this run has made N calls. Default: no call cap.
+  --delay-ms N         Wait N milliseconds between model calls in this run (default: 0).
+  --resume FILE        Skip task attempts already completed in a results JSON file and continue the suite.
   --out DIR            Directory for the results JSON (default: evals/results).
   --help               Show this help.
 
 Temperature is fixed at the product loop values (runner 0.4, evaluator 0.1, patcher 0.2).
 The command does not start Next.js or a database. Set OPENAI_API_KEY for a live run.
-OPENAI_BASE_URL and OPENAI_MODEL are optional (defaults: https://api.openai.com/v1, gpt-4o-mini).
+OPENAI_BASE_URL and OPENAI_MODEL select any OpenAI-compatible provider
+(defaults: https://api.openai.com/v1, gpt-4o-mini).
+Gemini: OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ OPENAI_MODEL=gemini-3.5-flash
+Groq: OPENAI_BASE_URL=https://api.groq.com/openai/v1 OPENAI_MODEL=llama-3.3-70b-versatile
 USE_SIMULATION is ignored here; pass --dry-run to simulate.
+--max-calls and --max-cost count only calls made in this process. --resume does not charge earlier calls against either cap.
+Calls already finished in the resume file are skipped. A training attempt is finished when it has a judge score, the blended total met the target, and every hard check passed, or when the attempt budget is used up. Otherwise the suite continues from the next missing attempt and patches first when the previous patch never landed.
 `;
 
 export const REPORT_HELP = `Write evals/RESULTS.md from an eval results JSON file.
@@ -66,6 +78,13 @@ function nonNegative(flag: string, raw: string): number {
   return value;
 }
 
+function nonNegativeInt(flag: string, raw: string): number {
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${flag} must be an integer greater than or equal to 0`);
+  }
+  return Number(raw);
+}
+
 function finiteNumber(flag: string, raw: string): number {
   const value = Number(raw);
   if (!Number.isFinite(value)) throw new Error(`${flag} must be a finite number`);
@@ -77,10 +96,13 @@ export function parseEvalArgs(argv: readonly string[]): EvalArgs {
     tasks: null,
     runs: 1,
     maxCost: 3,
+    maxCalls: null,
+    delayMs: 0,
     maxAttempts: 3,
     target: 90,
     dryRun: false,
     outDir: "evals/results",
+    resume: null,
     help: false,
   };
   const rest = [...argv];
@@ -109,6 +131,15 @@ export function parseEvalArgs(argv: readonly string[]): EvalArgs {
         break;
       case "--max-cost":
         args.maxCost = nonNegative("--max-cost", requireValue(token, rest));
+        break;
+      case "--max-calls":
+        args.maxCalls = nonNegativeInt("--max-calls", requireValue(token, rest));
+        break;
+      case "--delay-ms":
+        args.delayMs = nonNegativeInt("--delay-ms", requireValue(token, rest));
+        break;
+      case "--resume":
+        args.resume = requireValue(token, rest);
         break;
       case "--max-attempts":
         args.maxAttempts = positiveInt("--max-attempts", requireValue(token, rest));

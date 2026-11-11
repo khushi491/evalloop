@@ -91,6 +91,8 @@ export interface EvalResults {
   aborted: boolean;
   abortReason: string | null;
   heldOutSkippedReason: string | null;
+  /** Absolute or given path of the results file this run continued, if any. */
+  resumedFrom: string | null;
   config: {
     model: string;
     temperature: typeof FIXED_TEMPERATURES;
@@ -98,16 +100,21 @@ export interface EvalResults {
     targetScore: number;
     runs: number;
     maxCostUsd: number;
+    /** Null when this run had no call cap. */
+    maxCalls: number | null;
+    delayMs: number;
     taskIds: string[];
     totalFormula: string;
     price: {
-      model: "gpt-4o-mini";
+      model: string;
       inputUsdPerMillion: number;
       cachedInputUsdPerMillion: number;
       outputUsdPerMillion: number;
       source: string;
       checkedOn: string;
       note: string;
+      /** False when the model is reported as free tier / unknown. */
+      known: boolean;
     };
   };
   initialPolicy: Policy;

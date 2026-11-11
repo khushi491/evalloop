@@ -11,6 +11,23 @@ export interface LoopAttempt {
   policy: Policy;
 }
 
+export interface HardCheckFailure {
+  id: string;
+  type: string;
+  message: string;
+}
+
+export interface PatchContext {
+  hardCheckFailures: HardCheckFailure[];
+}
+
+export interface AttemptAssessment {
+  /** Score compared with the target. The eval harness passes the blended total. */
+  total: number;
+  hardChecksPass: boolean;
+  hardCheckFailures: HardCheckFailure[];
+}
+
 export interface ImprovementLoopClient {
   runner: (attemptIndex: number, taskText: string, policy: Policy) => Promise<string>;
   evaluator: (
@@ -24,7 +41,8 @@ export interface ImprovementLoopClient {
     taskText: string,
     outputText: string,
     evaluation: EvaluatorOutput,
-    policy: Policy
+    policy: Policy,
+    patchContext?: PatchContext
   ) => Promise<PatchOutput>;
 }
 
@@ -36,7 +54,11 @@ export interface ImprovementLoopHooks {
 
 /**
  * The product self-improvement loop: runner, evaluator, then a patch when the
- * judge score is still below the target and attempts remain.
+ * attempt should continue and attempts remain.
+ * Without `assess`, the compared score is the judge total and hard checks count
+ * as passing. That is the app loop. The eval harness passes `assess` so a run
+ * stops only when the blended total meets the target and every hard check passes,
+ * and so the patcher receives the hard-check failures.
  * Persistence is left to the caller. The eval harness and `executeRun` both
  * use this function.
  */
@@ -47,6 +69,13 @@ export async function runImprovementLoop(args: {
   targetScore: number;
   client: ImprovementLoopClient;
   hooks?: ImprovementLoopHooks;
+  /** First attempt index to run. Earlier attempts were restored by `--resume`. */
+  startAttempt?: number;
+  assess?: (input: {
+    outputText: string;
+    evaluation: EvaluatorOutput;
+    judgeScore: number;
+  }) => AttemptAssessment;
 }): Promise<{
   attempts: LoopAttempt[];
   policies: Policy[];
@@ -55,8 +84,9 @@ export async function runImprovementLoop(args: {
   const attempts: LoopAttempt[] = [];
   const policies: Policy[] = [args.initialPolicy];
   let current = args.initialPolicy;
+  const start = args.startAttempt ?? 1;
 
-  for (let index = 1; index <= args.maxAttempts; index++) {
+  for (let index = start; index <= args.maxAttempts; index++) {
     const outputText = await args.client.runner(index, args.taskText, current);
     const evaluation = await args.client.evaluator(
       index,
@@ -64,18 +94,21 @@ export async function runImprovementLoop(args: {
       outputText,
       current
     );
-    const scoreTotal = scoreTotalFromBreakdown(evaluation.score_breakdown);
+    const judgeScore = scoreTotalFromBreakdown(evaluation.score_breakdown);
+    const assessment: AttemptAssessment = args.assess
+      ? args.assess({ outputText, evaluation, judgeScore })
+      : { total: judgeScore, hardChecksPass: true, hardCheckFailures: [] };
     const attempt: LoopAttempt = {
       index,
       outputText,
       evaluation,
-      scoreTotal,
+      scoreTotal: judgeScore,
       policy: current,
     };
     attempts.push(attempt);
     if (args.hooks?.onAttempt) await args.hooks.onAttempt(attempt);
 
-    if (scoreTotal >= args.targetScore) {
+    if (assessment.total >= args.targetScore && assessment.hardChecksPass) {
       return { attempts, policies, reachedTarget: true };
     }
 
@@ -85,7 +118,8 @@ export async function runImprovementLoop(args: {
         args.taskText,
         outputText,
         evaluation,
-        current
+        current,
+        { hardCheckFailures: assessment.hardCheckFailures }
       );
       current = applyPatch(current, patch);
       policies.push(current);

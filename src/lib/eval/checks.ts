@@ -245,7 +245,9 @@ export function runHardChecks(text: string, checks: readonly HardCheck[]): HardC
   return {
     passed,
     total,
-    passRate: total === 0 ? 0 : passed / total,
+    // Nothing failed when the task defines no checks. A 0 rate would drag a
+    // blended total down as if every check had failed.
+    passRate: total === 0 ? 1 : passed / total,
     results,
   };
 }

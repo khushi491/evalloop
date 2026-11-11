@@ -85,4 +85,32 @@ describe("live eval client", () => {
     expect(results.totals.estimatedCostUsd).toBeGreaterThan(0);
     fetchMock.mockRestore();
   });
+
+  it("sends deterministic hard-check failures to the patcher", async () => {
+    vi.mocked(chatCompletion).mockResolvedValue({
+      content: "A short reply without the required keyword.",
+      usage,
+    });
+    await runSuite({
+      tasks: [
+        {
+          ...task,
+          checks: [{ id: "need-refund", type: "required_keywords", keywords: ["refund"] }],
+        },
+      ],
+      runs: 1,
+      maxAttempts: 2,
+      targetScore: 90,
+      maxCostUsd: 3,
+      dryRun: false,
+      model: "gpt-4o-mini",
+      client: createRoleClient({ dryRun: false }),
+    });
+
+    const patcherCall = vi
+      .mocked(chatCompletionJSONDetailed)
+      .mock.calls.find((call) => (call[0][0]?.content ?? "").includes("improve the policy"));
+    expect(patcherCall?.[0][1]?.content).toContain("## Hard-check failures");
+    expect(patcherCall?.[0][1]?.content).toContain("Missing keywords: refund.");
+  });
 });

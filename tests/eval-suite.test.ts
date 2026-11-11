@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseEvalArgs } from "../src/lib/eval/args";
 import { createRoleClient, type RoleClient } from "../src/lib/eval/client";
-import { BudgetExceededError } from "../src/lib/eval/cost";
+import { BudgetExceededError, priceForModel } from "../src/lib/eval/cost";
 import { expectedFullSuiteCalls } from "../src/lib/eval/metrics";
 import { runSuite } from "../src/lib/eval/suite";
 import { loadTasks } from "../src/lib/eval/tasks";
@@ -63,14 +63,22 @@ function scriptedClient(options: {
   sum?: number;
   promptTokens?: number;
   failJson?: boolean;
-  onPatch?: (taskText: string) => void;
+  content?: string;
+  onPatch?: (
+    taskText: string,
+    patchContext?: { hardCheckFailures: { id: string; message: string }[] }
+  ) => void;
+  onRole?: (role: "runner" | "evaluator" | "patcher") => void;
 }): RoleClient {
   const tokens = options.promptTokens ?? 100;
+  const content = options.content ?? "hello from the runner";
   return {
     async runner() {
-      return { content: "hello from the runner", usage: usage(tokens), attempts: 1 };
+      options.onRole?.("runner");
+      return { content, usage: usage(tokens), attempts: 1 };
     },
     async evaluator() {
+      options.onRole?.("evaluator");
       if (options.failJson) {
         throw new InvalidJsonError(
           "LLM returned invalid JSON after 2 attempts. Raw: {",
@@ -80,12 +88,21 @@ function scriptedClient(options: {
       }
       return { data: evaluation(options.sum ?? 10), usage: usage(tokens), attempts: 1 };
     },
-    async patcher(_attempt, taskText) {
-      options.onPatch?.(taskText);
+    async patcher(_attempt, taskText, _output, _evaluation, _policy, patchContext) {
+      options.onRole?.("patcher");
+      options.onPatch?.(taskText, patchContext);
       return { data: validPatch, usage: usage(tokens), attempts: 1 };
     },
   };
 }
+
+const mostlyPassingChecks: EvalTask["checks"] = [
+  { id: "words", type: "max_words", max: 20 },
+  { id: "min-words", type: "min_words", min: 1 },
+  { id: "hello", type: "required_keywords", keywords: ["hello"] },
+  { id: "runner", type: "required_keywords", keywords: ["runner"] },
+  { id: "need-refund", type: "required_keywords", keywords: ["refund"] },
+];
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -93,7 +110,7 @@ afterEach(() => {
 });
 
 describe("eval suite", () => {
-  it("stops a training task when the judge reaches the target and does not patch", async () => {
+  it("stops a training task when the total reaches the target and hard checks pass", async () => {
     let patches = 0;
     const results = await runSuite({
       tasks: [task({ id: "alpha", split: "train", prompt: "Train this." })],
@@ -116,6 +133,8 @@ describe("eval suite", () => {
     expect(results.training[0]?.runs[0]?.attempts).toHaveLength(1);
     expect(results.training[0]?.runs[0]?.reachedTarget).toBe(true);
     expect(results.training[0]?.runs[0]?.attempts[0]?.judge?.score).toBe(92);
+    expect(results.training[0]?.runs[0]?.attempts[0]?.hardChecks.passed).toBe(1);
+    expect(results.training[0]?.runs[0]?.attempts[0]?.total).toBe(96);
     expect(results.totals.modelCalls).toBe(2);
     expect(results.learnedPolicy.rules).toEqual(DEFAULT_POLICY.rules);
   });
@@ -245,6 +264,166 @@ describe("eval suite", () => {
     expect(results.config.temperature).toEqual(FIXED_TEMPERATURES);
     expect(results.config.price.inputUsdPerMillion).toBe(0.15);
     expect(results.config.price.outputUsdPerMillion).toBe(0.6);
+    expect(results.config.price.model).toBe("gpt-4o-mini");
+    expect(results.resumedFrom).toBeNull();
+    expect(results.config.maxCalls).toBeNull();
+  });
+
+  it("keeps looping when the judge is perfect but a hard check fails", async () => {
+    const seen: string[] = [];
+    const results = await runSuite({
+      tasks: [
+        task({
+          id: "alpha",
+          split: "train",
+          prompt: "Train this.",
+          checks: mostlyPassingChecks,
+        }),
+      ],
+      runs: 1,
+      maxAttempts: 2,
+      targetScore: 90,
+      maxCostUsd: 3,
+      dryRun: false,
+      model: "gemini-3.5-flash",
+      client: scriptedClient({
+        sum: 25,
+        promptTokens: 1_000_000,
+        onPatch: (_taskText, patchContext) => {
+          seen.push(...(patchContext?.hardCheckFailures.map((failure) => failure.message) ?? []));
+        },
+      }),
+    });
+
+    const run = results.training[0]?.runs[0];
+    expect(run?.reachedTarget).toBe(false);
+    expect(run?.attempts).toHaveLength(2);
+    expect(run?.attempts[0]?.judge?.score).toBe(100);
+    expect(run?.attempts[0]?.hardChecks.passed).toBe(4);
+    expect(run?.attempts[0]?.hardChecks.total).toBe(5);
+    expect(run?.attempts[0]?.total).toBe(90);
+    expect(seen.some((message) => message.includes("refund"))).toBe(true);
+    expect(results.config.price).toMatchObject({
+      model: priceForModel("gemini-3.5-flash").model,
+      known: false,
+      inputUsdPerMillion: 0,
+      cachedInputUsdPerMillion: 0,
+      outputUsdPerMillion: 0,
+    });
+    expect(results.config.price.model).toBe("free tier / unknown");
+    expect(results.totals.estimatedCostUsd).toBe(0);
+    expect(results.totals.modelCalls).toBe(5);
+  });
+
+  it("stops before the next call at the call cap and resumes without repeating finished attempts", async () => {
+    const tasks = [
+      task({ id: "alpha", split: "train", prompt: "Train." }),
+      task({ id: "held", split: "heldout", prompt: "Held." }),
+    ];
+    const shared = {
+      tasks,
+      runs: 1,
+      maxAttempts: 2,
+      targetScore: 90,
+      maxCostUsd: 3,
+      dryRun: false,
+      model: "gpt-4o-mini",
+    };
+    const first = await runSuite({
+      ...shared,
+      maxCalls: 2,
+      client: scriptedClient({ sum: 10 }),
+    });
+
+    expect(first.aborted).toBe(true);
+    expect(first.abortReason).toMatch(/max-calls/);
+    expect(first.totals.modelCalls).toBe(2);
+    expect(first.training[0]?.runs[0]?.attempts).toHaveLength(1);
+    expect(first.training[0]?.runs[0]?.attempts[0]?.judge?.score).toBe(40);
+    expect(first.heldOut).toEqual([]);
+
+    const roles: string[] = [];
+    const second = await runSuite({
+      ...shared,
+      maxCalls: 10,
+      prior: first,
+      resumedFrom: "evals/results/first.json",
+      client: scriptedClient({
+        sum: 25,
+        onRole: (role) => {
+          roles.push(role);
+        },
+      }),
+    });
+
+    expect(second.aborted).toBe(false);
+    expect(roles).toEqual(["patcher", "runner", "evaluator", "runner", "evaluator", "runner", "evaluator"]);
+    const continued = second.training[0]?.runs[0];
+    expect(continued?.reachedTarget).toBe(true);
+    expect(continued?.attempts.map((attempt) => attempt.judge?.score)).toEqual([40, 100]);
+    expect(continued?.attempts.map((attempt) => attempt.policyVersion)).toEqual([1, 2]);
+    expect(continued?.attempts[0]?.calls.map((call) => call.role)).toEqual([
+      "runner",
+      "evaluator",
+      "patcher",
+    ]);
+    expect(second.heldOut[0]?.runs[0]?.initial.attempt?.judge?.score).toBe(100);
+    expect(second.heldOut[0]?.runs[0]?.learned.attempt?.judge?.score).toBe(100);
+    expect(second.totals.modelCalls).toBe(9);
+    expect(second.resumedFrom).toBe("evals/results/first.json");
+
+    const againRoles: string[] = [];
+    const again = await runSuite({
+      ...shared,
+      maxCalls: 0,
+      prior: second,
+      client: scriptedClient({
+        sum: 1,
+        onRole: (role) => {
+          againRoles.push(role);
+        },
+      }),
+    });
+    expect(again.aborted).toBe(false);
+    expect(againRoles).toEqual([]);
+    expect(again.totals.modelCalls).toBe(second.totals.modelCalls);
+    expect(again.training[0]?.runs[0]?.attempts[0]?.judge?.score).toBe(40);
+  });
+
+  it("waits between calls only when delay-ms is set", async () => {
+    const sleeps: number[] = [];
+    await runSuite({
+      tasks: [task({ id: "alpha", split: "train", prompt: "Train." })],
+      runs: 1,
+      maxAttempts: 1,
+      targetScore: 90,
+      maxCostUsd: 3,
+      delayMs: 25,
+      dryRun: true,
+      model: "gpt-4o-mini",
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+      client: scriptedClient({ sum: 10 }),
+    });
+    expect(sleeps).toEqual([25]);
+
+    await expect(
+      runSuite({
+        tasks: [task({ id: "alpha", split: "train", prompt: "Train." })],
+        runs: 1,
+        maxAttempts: 1,
+        targetScore: 90,
+        maxCostUsd: 3,
+        delayMs: 0,
+        dryRun: true,
+        model: "gpt-4o-mini",
+        sleep: async () => {
+          throw new Error("should not sleep");
+        },
+        client: scriptedClient({ sum: 10 }),
+      })
+    ).resolves.toMatchObject({ aborted: false });
   });
 
   it("does not import the database client", () => {
@@ -275,16 +454,35 @@ describe("eval CLI", () => {
     expect(parseEvalArgs([])).toMatchObject({
       runs: 1,
       maxCost: 3,
+      maxCalls: null,
+      delayMs: 0,
       maxAttempts: 3,
       target: 90,
       dryRun: false,
       tasks: null,
+      resume: null,
     });
     expect(parseEvalArgs(["--tasks", "a, b", "--runs", "2", "--max-cost", "0.5"])).toMatchObject({
       tasks: ["a", "b"],
       runs: 2,
       maxCost: 0.5,
     });
+    expect(
+      parseEvalArgs([
+        "--max-calls",
+        "20",
+        "--delay-ms",
+        "1000",
+        "--resume",
+        "evals/results/prior.json",
+      ])
+    ).toMatchObject({
+      maxCalls: 20,
+      delayMs: 1000,
+      resume: "evals/results/prior.json",
+    });
+    expect(parseEvalArgs(["--max-calls", "0"]).maxCalls).toBe(0);
+    expect(() => parseEvalArgs(["--delay-ms", "-1"])).toThrow(/delay-ms/);
     expect(parseEvalArgs(["--", "--dry-run"]).dryRun).toBe(true);
     expect(() => parseEvalArgs(["--nope"])).toThrow(/Unknown argument/);
   });
@@ -320,6 +518,47 @@ describe("eval CLI", () => {
     };
     expect(written.dryRun).toBe(true);
     expect(written.totals.estimatedCostUsd).toBe(0);
+
+    const resumeDir = mkdtempSync(path.join(tmpdir(), "evalloop-eval-resume-"));
+    const resumed = execFileSync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "scripts/eval.ts",
+        "--dry-run",
+        "--resume",
+        path.join(outDir, files[0]!),
+        "--max-calls",
+        "0",
+        "--tasks",
+        "support-double-charge,status-update",
+        "--max-attempts",
+        "1",
+        "--out",
+        resumeDir,
+      ],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: cliEnv(),
+      }
+    );
+    expect(resumed).toContain("skipped");
+    const resumedFiles = readdirSync(resumeDir).filter((name) => name.endsWith(".json"));
+    expect(resumedFiles).toHaveLength(1);
+    const continued = JSON.parse(readFileSync(path.join(resumeDir, resumedFiles[0]!), "utf8")) as {
+      aborted: boolean;
+      totals: { modelCalls: number };
+    };
+    expect(continued.aborted).toBe(false);
+    expect(continued.totals.modelCalls).toBe(
+      (
+        JSON.parse(readFileSync(path.join(outDir, files[0]!), "utf8")) as {
+          totals: { modelCalls: number };
+        }
+      ).totals.modelCalls
+    );
   }, 90_000);
 
   it("exits 2 when the cost cap is already spent and exits 1 without a key", () => {
