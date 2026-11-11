@@ -14,6 +14,7 @@ import {
   buildPatcherMessages,
 } from "./prompts";
 import { applyPatch } from "./policy";
+import { scoreTotalFromBreakdown } from "./score";
 import {
   simulateRunner,
   simulateEvaluator,
@@ -43,13 +44,12 @@ async function runEvaluator(
   outputText: string,
   policy: Policy
 ): Promise<EvaluatorOutput> {
-  if (isSimulation()) {
-    return simulateEvaluator(attemptIndex);
-  }
-  const messages = buildEvaluatorMessages(taskText, outputText, policy);
-  const raw = await chatCompletionJSON<EvaluatorOutput>(messages, {
-    temperature: 0.1,
-  });
+  const raw = isSimulation()
+    ? await simulateEvaluator(attemptIndex)
+    : await chatCompletionJSON<unknown>(
+        buildEvaluatorMessages(taskText, outputText, policy),
+        { temperature: 0.1 }
+      );
   return EvaluatorOutputSchema.parse(raw);
 }
 
@@ -60,13 +60,12 @@ async function runPatcher(
   evaluation: EvaluatorOutput,
   policy: Policy
 ): Promise<PatchOutput> {
-  if (isSimulation()) {
-    return simulatePatcher(attemptIndex);
-  }
-  const messages = buildPatcherMessages(taskText, outputText, evaluation, policy);
-  const raw = await chatCompletionJSON<PatchOutput>(messages, {
-    temperature: 0.2,
-  });
+  const raw = isSimulation()
+    ? await simulatePatcher(attemptIndex)
+    : await chatCompletionJSON<unknown>(
+        buildPatcherMessages(taskText, outputText, evaluation, policy),
+        { temperature: 0.2 }
+      );
   return PatchOutputSchema.parse(raw);
 }
 
@@ -103,7 +102,7 @@ export async function executeRun(runId: string) {
         currentPolicy
       );
 
-      const scoreTotal = Math.round(evaluation.score_total);
+      const scoreTotal = scoreTotalFromBreakdown(evaluation.score_breakdown);
 
       await prisma.attempt.create({
         data: {

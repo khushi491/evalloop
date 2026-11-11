@@ -67,6 +67,7 @@ Best regards,
 Support Team`,
 };
 
+// score_total follows round(sum(score_breakdown) / 25 * 100).
 const SIMULATED_EVALS: Record<number, EvaluatorOutput> = {
   1: {
     score_total: 52,
@@ -89,11 +90,11 @@ const SIMULATED_EVALS: Record<number, EvaluatorOutput> = {
   2: {
     score_total: 72,
     score_breakdown: {
-      constraint_coverage: 3,
-      clarity_structure: 4,
+      constraint_coverage: 2,
+      clarity_structure: 3,
       tone: 5,
       safety: 5,
-      tool_correctness: 4,
+      tool_correctness: 3,
     },
     violations: [
       { type: "constraints", message: "Did not explicitly offer credit as an alternative to refund", severity: "medium" },
@@ -105,10 +106,10 @@ const SIMULATED_EVALS: Record<number, EvaluatorOutput> = {
     score_total: 84,
     score_breakdown: {
       constraint_coverage: 4,
-      clarity_structure: 5,
-      tone: 5,
+      clarity_structure: 4,
+      tone: 4,
       safety: 5,
-      tool_correctness: 5,
+      tool_correctness: 4,
     },
     violations: [
       { type: "constraints", message: "Slightly exceeds 90-word limit at ~92 words", severity: "low" },
@@ -193,7 +194,13 @@ const SIMULATED_PATCHES: Record<number, PatchOutput> = {
 };
 
 function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const override = process.env.SIMULATION_DELAY_MS;
+  const wait = override === undefined || override === "" ? ms : Number(override);
+  if (!Number.isFinite(wait)) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  if (wait <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, wait));
 }
 
 export async function simulateRunner(
