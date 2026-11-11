@@ -1,4 +1,5 @@
 import type { Policy, EvaluatorOutput } from "./schemas";
+import { SCORE_TOTAL_FORMULA } from "./score";
 
 export function buildRunnerMessages(taskText: string, policy: Policy) {
   return [
@@ -69,7 +70,7 @@ ${JSON.stringify(policy, null, 2)}
 - If the task lists numbered constraints: check each one explicitly.
 
 ## score_total Calculation
-score_total = round((constraint_coverage + clarity_structure + tone + safety + tool_correctness) / 25 * 100)
+score_total = ${SCORE_TOTAL_FORMULA}
 
 Return ONLY the JSON object.`,
     },
