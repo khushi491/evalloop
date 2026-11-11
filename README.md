@@ -98,7 +98,57 @@ pnpm typecheck
 pnpm build
 ```
 
-`pnpm test` runs the Vitest suite. It covers policy patches, rubric scoring, schema checks, and the execution loop against a temporary SQLite database. Simulation mode is on and the LLM client is mocked, so the suite does not call an external API.
+`pnpm test` runs the Vitest suite. It covers policy patches, rubric scoring, schema checks, the execution loop, and the eval harness. Simulation mode is on and the LLM client is mocked, so the suite does not call an external API. CI runs those checks and a `pnpm eval -- --dry-run` smoke test. It does not call a paid API.
+
+## Evaluation
+
+The harness measures the same loop the app runs (`runImprovementLoop` in `src/lib/improvement-loop.ts`). The runner drafts, the evaluator scores, and the patcher updates the policy until the judge score reaches the target or the attempt budget runs out.
+
+Fixtures live in `evals/tasks/`. Seven are training tasks. Three are held out: `security-advisory`, `invoice-json`, and `status-update`. Each file has a prompt, the constraints in plain language, and hard checks that run in process: word limits, required headings and keywords, forbidden text, and JSON shape. Hard checks are recorded beside the judge. They are not added to the judge prompt, and the patcher does not receive them.
+
+### What a run records
+
+For each attempt the results JSON stores the hard-check pass rate, the judge rubric breakdown, the judge total (the same total the app stores), a combined total, token counts, estimated cost, and latency. The combined total is `round((hard-check pass rate × 100 + judge score) / 2)`. The loop still stops on the judge total.
+
+Every training task starts from the initial policy. The first scored attempt is the baseline. The last scored attempt is the result after self-improvement. `--runs N` repeats that loop; the report averages runs within a task, then averages tasks with equal weight.
+
+Held-out prompts are never sent to the patcher. After training, the final policy from each training run is merged into one learned policy. A starting rule is dropped only when every training run dropped it. Rules any run added are appended. The word cap becomes the smallest cap from the initial policy and the training policies. Each held-out task is then drafted once under the initial policy and once under the learned policy.
+
+Cost uses the gpt-4o-mini standard price table in `src/lib/eval/cost.ts`: input $0.15 / 1M tokens, cached input $0.075 / 1M tokens, output $0.60 / 1M tokens (checked 2026-11-11 against the OpenAI model page). Cached tokens use the cached rate only when the API reports them. `--max-cost` defaults to 3. The suite stops before the next model call once estimated spend reaches that amount. The call already in flight is recorded, including when it crosses the cap.
+
+Temperature is fixed at the product values: runner 0.4, evaluator 0.1, patcher 0.2. The CLI does not have a temperature flag.
+
+### Planned model calls
+
+Defaults are 7 training tasks, 3 held-out tasks, `--runs 1`, and `--max-attempts 3`. When no training attempt reaches the target early and no JSON reply needs a second parse, that is 68 model calls:
+
+- training: `runs × tasks × (3 × maxAttempts − 1)` = 56
+- held-out: `runs × tasks × 4` = 12
+
+An earlier stop removes the calls that would have followed it. The patcher does not run after the attempt that ends a loop. A JSON parse retry adds one extra call for that reply.
+
+### How to run
+
+The CLI does not start Next.js or a database. It ignores `USE_SIMULATION`. A live run needs `OPENAI_API_KEY` in the environment. `OPENAI_BASE_URL` and `OPENAI_MODEL` are optional and default to `https://api.openai.com/v1` and `gpt-4o-mini`.
+
+`pnpm install` is enough to run the eval. `pnpm exec prisma generate` is for the app and for `pnpm test`; the eval command does not use Prisma.
+
+```bash
+pnpm eval -- --runs 1 --max-attempts 3 --max-cost 3
+pnpm eval:report -- evals/results/<timestamp>.json
+```
+
+Other flags: `--tasks id,id`, `--target 90`, `--out evals/results`, `--dry-run`, `--help`.
+
+Dry run uses the built-in simulation client and does not need an API key:
+
+```bash
+pnpm eval -- --dry-run
+```
+
+Each live or dry run writes `evals/results/<timestamp>.json`. Those JSON files are gitignored. `evals/RESULTS.md` is the report a human checks in. It currently says the evaluation has not been run yet. `pnpm eval:report` replaces that file from a results JSON. Leave the placeholder in place until a real run exists, and do not type scores into it by hand.
+
+The checked-in report, once a real run has been generated, is linked from this section: [evals/RESULTS.md](evals/RESULTS.md).
 
 ## Demo Flow (2 minutes)
 
@@ -152,7 +202,16 @@ src/
     ├── policy.ts          # Policy patch application
     ├── schemas.ts         # Zod schemas + types
     ├── simulate.ts        # Simulation mode mock data
-    └── execute.ts         # Core execution loop
+    ├── improvement-loop.ts # Shared runner → evaluator → patcher loop
+    ├── execute.ts         # Persists the loop for a project run
+    └── eval/              # Hard checks, cost, suite, and the results report
+evals/
+├── tasks/                 # Train and held-out fixtures
+├── results/               # Timestamped results JSON (gitignored)
+└── RESULTS.md             # Report generated from a results file
+scripts/
+├── eval.ts                # `pnpm eval`
+└── eval-report.ts         # `pnpm eval:report`
 ```
 
 ## Data Models

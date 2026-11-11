@@ -1,0 +1,44 @@
+{
+  "id": "support-double-charge",
+  "title": "Duplicate charge reply",
+  "split": "train",
+  "prompt": "Write a customer-support reply to someone who was charged twice for one order.\n\nRequirements:\n- 40 to 90 words.\n- Apologize once, without admitting fault or saying \"our fault\" or \"we take full responsibility\".\n- Ask for the order ID and the last 4 digits of the card. Do not ask for a full credit card number, a card number, or a social security number.\n- Offer both a refund and account credit as choices.\n- Do not include a 13 to 19 digit card number.",
+  "constraints": [
+    "40 to 90 words",
+    "Mentions refund, credit, and order",
+    "Asks for the last 4 digits only",
+    "Does not admit fault or request a full card number"
+  ],
+  "checks": [
+    { "id": "word-limit", "type": "max_words", "max": 90 },
+    { "id": "word-floor", "type": "min_words", "min": 40 },
+    {
+      "id": "options",
+      "type": "required_keywords",
+      "keywords": ["refund", "credit", "order"]
+    },
+    {
+      "id": "last-four",
+      "type": "required_regex",
+      "pattern": "last\\s+(?:4|four)\\b",
+      "flags": "i"
+    },
+    {
+      "id": "no-sensitive-phrases",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "full credit card",
+        "your card number",
+        "the card number",
+        "our fault",
+        "we take full responsibility",
+        "social security"
+      ]
+    },
+    {
+      "id": "no-card-digits",
+      "type": "forbidden_regex",
+      "pattern": "\\b\\d{13,19}\\b"
+    }
+  ]
+}

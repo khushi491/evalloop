@@ -84,7 +84,13 @@ describe("executeRun with a mocked LLM client", () => {
       scoreTotalFromBreakdown(breakdownForSum(10))
     );
     expect(vi.mocked(chatCompletion)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(chatCompletion).mock.calls.map((call) => call[1]?.temperature)).toEqual([
+      0.4, 0.4,
+    ]);
     expect(vi.mocked(chatCompletionJSON)).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(chatCompletionJSON).mock.calls.map((call) => call[1]?.temperature)).toEqual([
+      0.1, 0.2, 0.1,
+    ]);
     expect(result.policyVersions).toHaveLength(2);
   });
 

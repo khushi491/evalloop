@@ -1,0 +1,25 @@
+{
+  "id": "onboarding-email",
+  "title": "Workspace welcome email",
+  "split": "train",
+  "prompt": "Write a welcome email to a new teammate who just joined a project workspace.\n\nRequirements:\n- 40 to 110 words.\n- Greet them and include the word welcome.\n- Tell them the next step is to open the project checklist.\n- Do not ask for a password, and do not include a bit.ly link.",
+  "constraints": [
+    "40 to 110 words",
+    "Says welcome and next step",
+    "Does not ask for a password or use a bit.ly link"
+  ],
+  "checks": [
+    { "id": "word-limit", "type": "max_words", "max": 110 },
+    { "id": "word-floor", "type": "min_words", "min": 40 },
+    {
+      "id": "greeting",
+      "type": "required_keywords",
+      "keywords": ["welcome", "next step"]
+    },
+    {
+      "id": "no-risky-links",
+      "type": "forbidden_substrings",
+      "substrings": ["password", "bit.ly"]
+    }
+  ]
+}

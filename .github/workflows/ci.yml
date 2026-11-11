@@ -46,5 +46,10 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Eval dry run
+        env:
+          OPENAI_API_KEY: ""
+        run: pnpm eval -- --dry-run --out "${{ runner.temp }}/evalloop-eval"
+
       - name: Build
         run: pnpm build

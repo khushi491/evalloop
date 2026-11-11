@@ -7,9 +7,11 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src tests vitest.config.ts",
+    "lint": "eslint src tests scripts vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval": "tsx scripts/eval.ts",
+    "eval:report": "tsx scripts/eval-report.ts"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +34,7 @@
     "onlyBuiltDependencies": [
       "@prisma/engines",
       "@prisma/client",
+      "esbuild",
       "prisma"
     ]
   },
@@ -45,6 +48,7 @@
     "eslint": "^9",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
   }

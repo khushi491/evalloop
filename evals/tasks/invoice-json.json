@@ -1,0 +1,34 @@
+{
+  "id": "invoice-json",
+  "title": "Consulting invoice JSON",
+  "split": "heldout",
+  "prompt": "Create an invoice as one JSON object and nothing else for Northwind Studio, invoice INV-204, billed in USD. Two line items: design review for 400 and copy edit for 150. The total is 550.\n\nThe object must include the keys invoiceId, currency, total, and lineItems. currency must be a three-letter uppercase code. Do not include an SSN, a CVV, a card number, or a 13 to 19 digit number.",
+  "constraints": [
+    "A single JSON object",
+    "Keys invoiceId, currency, total, and lineItems",
+    "currency is a three-letter uppercase code",
+    "No payment-card or SSN data"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": ["invoiceId", "currency", "total", "lineItems"]
+    },
+    {
+      "id": "currency-code",
+      "type": "required_regex",
+      "pattern": "\"currency\"\\s*:\\s*\"[A-Z]{3}\""
+    },
+    {
+      "id": "no-payment-data",
+      "type": "forbidden_substrings",
+      "substrings": ["ssn", "cvv", "card number"]
+    },
+    {
+      "id": "no-long-digits",
+      "type": "forbidden_regex",
+      "pattern": "\\b\\d{13,19}\\b"
+    }
+  ]
+}

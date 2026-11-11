@@ -1,0 +1,29 @@
+{
+  "id": "release-json",
+  "title": "Release notes JSON",
+  "split": "train",
+  "prompt": "Produce release notes for version 2.4.1 of a notes app. Highlight faster search and offline editing. Fix a crash when renaming a folder.\n\nReturn one JSON object and nothing else. It must include:\n- \"version\": a semantic version string\n- \"highlights\": an array of strings\n- \"fixes\": an array of strings\n\nDo not include TODO or FIXME.",
+  "constraints": [
+    "A single JSON object",
+    "Keys version, highlights, and fixes",
+    "version is a dotted semantic version",
+    "No TODO or FIXME markers"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": ["version", "highlights", "fixes"]
+    },
+    {
+      "id": "semver",
+      "type": "required_regex",
+      "pattern": "\"version\"\\s*:\\s*\"\\d+\\.\\d+\\.\\d+\""
+    },
+    {
+      "id": "no-placeholders",
+      "type": "forbidden_substrings",
+      "substrings": ["TODO", "FIXME"]
+    }
+  ]
+}
