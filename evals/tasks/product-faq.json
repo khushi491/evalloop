@@ -1,0 +1,26 @@
+{
+  "id": "product-faq",
+  "title": "Shipping and returns FAQ",
+  "split": "train",
+  "prompt": "Write a short FAQ for a ceramics shop.\n\nRequirements:\n- At most 120 words.\n- Use these exact markdown headings: ## Returns, ## Shipping.\n- Say that returns are accepted within 30 days.\n- Do not mention the competitors AcmeRival or CompetitorCo.",
+  "constraints": [
+    "At most 120 words",
+    "Headings: Returns, Shipping",
+    "Mentions the 30 day return window",
+    "Does not name competitors"
+  ],
+  "checks": [
+    { "id": "word-limit", "type": "max_words", "max": 120 },
+    {
+      "id": "sections",
+      "type": "required_headings",
+      "headings": ["Returns", "Shipping"]
+    },
+    { "id": "window", "type": "required_keywords", "keywords": ["30 days"] },
+    {
+      "id": "no-competitors",
+      "type": "forbidden_substrings",
+      "substrings": ["AcmeRival", "CompetitorCo"]
+    }
+  ]
+}

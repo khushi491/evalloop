@@ -1,0 +1,88 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { EVAL_HELP, parseEvalArgs } from "../src/lib/eval/args";
+import { createRoleClient } from "../src/lib/eval/client";
+import { runSuite } from "../src/lib/eval/suite";
+import { loadTasks, selectTasks } from "../src/lib/eval/tasks";
+import { loadEnvFile } from "./load-env";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function resultsFileName(iso: string): string {
+  return `${iso.replace(/[:.]/g, "-")}.json`;
+}
+
+function fail(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
+async function main() {
+  let args;
+  try {
+    args = parseEvalArgs(process.argv.slice(2));
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+  if (args.help) {
+    console.log(EVAL_HELP);
+    return;
+  }
+
+  loadEnvFile(path.join(repoRoot, ".env"));
+
+  if (!args.dryRun) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey === "sk-placeholder") {
+      fail(
+        "OPENAI_API_KEY is not set. Export it and rerun, or pass --dry-run to use the simulation client."
+      );
+    }
+  } else if (!process.env.SIMULATION_DELAY_MS) {
+    process.env.SIMULATION_DELAY_MS = "0";
+  }
+
+  let tasks;
+  try {
+    tasks = selectTasks(loadTasks(), args.tasks);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  console.log(
+    `EvalLoop eval: ${tasks.length} tasks, runs ${args.runs}, max attempts ${args.maxAttempts}, ` +
+      `target ${args.target}, max cost $${args.maxCost}, model ${model}, ` +
+      `${args.dryRun ? "dry run" : "live API"}`
+  );
+
+  const results = await runSuite({
+    tasks,
+    runs: args.runs,
+    maxAttempts: args.maxAttempts,
+    targetScore: args.target,
+    maxCostUsd: args.maxCost,
+    dryRun: args.dryRun,
+    model,
+    client: createRoleClient({ dryRun: args.dryRun }),
+    logger: (line) => console.log(line),
+  });
+
+  const outDir = path.resolve(process.cwd(), args.outDir);
+  mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, resultsFileName(results.generatedAt));
+  writeFileSync(outFile, `${JSON.stringify(results, null, 2)}\n`);
+  console.log(`Wrote ${outFile}`);
+  console.log(
+    `Model calls ${results.totals.modelCalls}, estimated cost $${results.totals.estimatedCostUsd}`
+  );
+  if (results.aborted) {
+    console.error(results.abortReason);
+    process.exit(2);
+  }
+}
+
+main().catch((error: unknown) => {
+  fail(error instanceof Error ? error.message : String(error));
+});

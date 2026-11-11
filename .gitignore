@@ -20,5 +20,8 @@ prisma/test.db-shm
 npm-debug.log*
 pnpm-debug.log*
 
+evals/results/*
+!evals/results/.gitkeep
+
 .DS_Store
 *.pem

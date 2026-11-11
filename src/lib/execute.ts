@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { runImprovementLoop } from "./improvement-loop";
 import { chatCompletion, chatCompletionJSON } from "./llm";
 import {
   DEFAULT_POLICY,
@@ -13,13 +14,16 @@ import {
   buildEvaluatorMessages,
   buildPatcherMessages,
 } from "./prompts";
-import { applyPatch } from "./policy";
-import { scoreTotalFromBreakdown } from "./score";
 import {
   simulateRunner,
   simulateEvaluator,
   simulatePatcher,
 } from "./simulate";
+import {
+  EVALUATOR_TEMPERATURE,
+  PATCHER_TEMPERATURE,
+  RUNNER_TEMPERATURE,
+} from "./temperatures";
 
 function isSimulation(): boolean {
   return process.env.USE_SIMULATION === "true";
@@ -34,7 +38,7 @@ async function runRunner(
     return simulateRunner(attemptIndex, taskText, policy);
   }
   const messages = buildRunnerMessages(taskText, policy);
-  const resp = await chatCompletion(messages, { temperature: 0.4 });
+  const resp = await chatCompletion(messages, { temperature: RUNNER_TEMPERATURE });
   return resp.content;
 }
 
@@ -48,7 +52,7 @@ async function runEvaluator(
     ? await simulateEvaluator(attemptIndex)
     : await chatCompletionJSON<unknown>(
         buildEvaluatorMessages(taskText, outputText, policy),
-        { temperature: 0.1 }
+        { temperature: EVALUATOR_TEMPERATURE }
       );
   return EvaluatorOutputSchema.parse(raw);
 }
@@ -64,7 +68,7 @@ async function runPatcher(
     ? await simulatePatcher(attemptIndex)
     : await chatCompletionJSON<unknown>(
         buildPatcherMessages(taskText, outputText, evaluation, policy),
-        { temperature: 0.2 }
+        { temperature: PATCHER_TEMPERATURE }
       );
   return PatchOutputSchema.parse(raw);
 }
@@ -81,70 +85,54 @@ export async function executeRun(runId: string) {
     data: { status: "running" },
   });
 
-  let currentPolicy: Policy = { ...DEFAULT_POLICY };
+  const initialPolicy: Policy = { ...DEFAULT_POLICY };
 
   await prisma.policyVersion.create({
     data: {
       runId,
       version: 1,
-      policyJson: JSON.stringify(currentPolicy),
+      policyJson: JSON.stringify(initialPolicy),
     },
   });
 
   try {
-    for (let i = 1; i <= run.maxAttempts; i++) {
-      const outputText = await runRunner(i, run.taskText, currentPolicy);
-
-      const evaluation = await runEvaluator(
-        i,
-        run.taskText,
-        outputText,
-        currentPolicy
-      );
-
-      const scoreTotal = scoreTotalFromBreakdown(evaluation.score_breakdown);
-
-      await prisma.attempt.create({
-        data: {
-          runId,
-          index: i,
-          outputText,
-          scoreTotal,
-          scoreBreakdownJson: JSON.stringify(evaluation.score_breakdown),
-          violationsJson: JSON.stringify({
-            violations: evaluation.violations,
-            notes: evaluation.notes,
-          }),
+    await runImprovementLoop({
+      taskText: run.taskText,
+      initialPolicy,
+      maxAttempts: run.maxAttempts,
+      targetScore: run.targetScore,
+      client: {
+        runner: runRunner,
+        evaluator: runEvaluator,
+        patcher: runPatcher,
+      },
+      hooks: {
+        onAttempt: async (attempt) => {
+          await prisma.attempt.create({
+            data: {
+              runId,
+              index: attempt.index,
+              outputText: attempt.outputText,
+              scoreTotal: attempt.scoreTotal,
+              scoreBreakdownJson: JSON.stringify(attempt.evaluation.score_breakdown),
+              violationsJson: JSON.stringify({
+                violations: attempt.evaluation.violations,
+                notes: attempt.evaluation.notes,
+              }),
+            },
+          });
         },
-      });
-
-      if (scoreTotal >= run.targetScore) {
-        await prisma.projectRun.update({
-          where: { id: runId },
-          data: { status: "completed" },
-        });
-        return loadRunDetail(runId);
-      }
-
-      if (i < run.maxAttempts) {
-        const patch = await runPatcher(
-          i,
-          run.taskText,
-          outputText,
-          evaluation,
-          currentPolicy
-        );
-        currentPolicy = applyPatch(currentPolicy, patch);
-
-        await prisma.policyVersion.create({
-          data: {
-            runId,
-            version: currentPolicy.version,
-            policyJson: JSON.stringify(currentPolicy),
-          },
-        });
-      }
-    }
+        onPolicy: async (policy) => {
+          await prisma.policyVersion.create({
+            data: {
+              runId,
+              version: policy.version,
+              policyJson: JSON.stringify(policy),
+            },
+          });
+        },
+      },
+    });
 
     await prisma.projectRun.update({
       where: { id: runId },

@@ -1,0 +1,27 @@
+{
+  "id": "status-update",
+  "title": "API latency status update",
+  "split": "heldout",
+  "prompt": "Write a public status update. The API has elevated latency. The team is investigating a saturated database pool. The next update will be in 30 minutes. Do not claim the incident is resolved.\n\nRequirements:\n- 25 to 80 words.\n- Use these exact markdown headings: ## Status, ## What happened, ## Next update.\n- Say the team is investigating.\n- Do not say \"definitely fixed\" or \"not our problem\".",
+  "constraints": [
+    "25 to 80 words",
+    "Headings: Status, What happened, Next update",
+    "Says the team is investigating",
+    "Does not claim the incident is definitely fixed"
+  ],
+  "checks": [
+    { "id": "word-limit", "type": "max_words", "max": 80 },
+    { "id": "word-floor", "type": "min_words", "min": 25 },
+    {
+      "id": "sections",
+      "type": "required_headings",
+      "headings": ["Status", "What happened", "Next update"]
+    },
+    { "id": "investigating", "type": "required_keywords", "keywords": ["investigating"] },
+    {
+      "id": "no-overclaim",
+      "type": "forbidden_substrings",
+      "substrings": ["definitely fixed", "not our problem"]
+    }
+  ]
+}

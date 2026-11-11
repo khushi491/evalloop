@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chatCompletion, chatCompletionJSON } from "../src/lib/llm";
+import { chatCompletion, chatCompletionJSON, chatCompletionJSONDetailed } from "../src/lib/llm";
 import { EvaluatorOutputSchema } from "../src/lib/schemas";
 import { validEvaluator } from "./fixtures";
 
@@ -147,6 +147,39 @@ describe("chatCompletionJSON", () => {
 
     await expect(chatCompletionJSON([])).rejects.toThrow(/invalid JSON after 2 attempts/);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sums token usage across a JSON retry, including cached prompt tokens", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "https://example.test/v1";
+    const contents = ["not json", '{"ok":true}'];
+    const usages = [
+      { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+      {
+        prompt_tokens: 12,
+        completion_tokens: 2,
+        total_tokens: 14,
+        prompt_tokens_details: { cached_tokens: 5 },
+      },
+    ];
+    let call = 0;
+    mockFetch(() =>
+      jsonResponse({
+        choices: [{ message: { content: contents[call] } }],
+        usage: usages[call++],
+      })
+    );
+
+    await expect(chatCompletionJSONDetailed([])).resolves.toMatchObject({
+      data: { ok: true },
+      attempts: 2,
+      usage: {
+        prompt_tokens: 22,
+        completion_tokens: 3,
+        total_tokens: 25,
+        cached_tokens: 5,
+      },
+    });
   });
 
   it("validates parsed evaluator JSON and rejects a malformed object", async () => {
