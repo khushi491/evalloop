@@ -1,13 +1,21 @@
-import { runImprovementLoop, type LoopAttempt } from "../improvement-loop";
+import { applyPatch } from "../policy";
+import { runImprovementLoop, type LoopAttempt, type PatchContext } from "../improvement-loop";
 import { InvalidJsonError, emptyUsage, type TokenUsage } from "../llm";
 import type { EvaluatorOutput, Policy } from "../schemas";
 import { DEFAULT_POLICY, EvaluatorOutputSchema, PatchOutputSchema } from "../schemas";
 import { FIXED_TEMPERATURES } from "../temperatures";
 import type { RoleClient } from "./client";
 import { runHardChecks } from "./checks";
-import { BudgetExceededError, GPT_4O_MINI_PRICE, estimateCostUsd, roundUsd } from "./cost";
+import {
+  BudgetExceededError,
+  CallBudgetExceededError,
+  type TokenPrice,
+  estimateCostUsd,
+  priceForModel,
+  roundUsd,
+} from "./cost";
 import { clonePolicy, mergeLearnedPolicies } from "./merge";
-import { TOTAL_FORMULA, compositeTotal } from "./metrics";
+import { TOTAL_FORMULA, compositeTotal, meetsLoopTarget } from "./metrics";
 import type { EvalTask } from "./tasks";
 import type {
   AttemptCall,
@@ -21,8 +29,11 @@ import type {
   TrainingTaskRecord,
 } from "./types";
 
-const PRICE_NOTE =
+const KNOWN_PRICE_NOTE =
   "Cached input is priced only when the API reports cached prompt tokens. Otherwise every prompt token uses the input rate.";
+
+const UNKNOWN_PRICE_NOTE =
+  "Estimated cost is $0. Token spend is estimated only for a model with a configured price.";
 
 interface CallLogEntry extends AttemptCall {
   attemptIndex: number;
@@ -30,8 +41,14 @@ interface CallLogEntry extends AttemptCall {
 
 interface Ledger {
   maxCostUsd: number;
-  spentUsd: number;
-  totals: EvalTotals;
+  maxCalls: number;
+  invocationSpentUsd: number;
+  invocationCalls: number;
+}
+
+async function sleepMs(ms: number): Promise<void> {
+  if (ms <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function freshTotals(): EvalTotals {
@@ -50,26 +67,30 @@ function errorMessage(error: unknown): string {
   return message.length > 500 ? `${message.slice(0, 500)}…` : message;
 }
 
+function isBudgetError(
+  error: unknown
+): error is BudgetExceededError | CallBudgetExceededError {
+  return error instanceof BudgetExceededError || error instanceof CallBudgetExceededError;
+}
+
 function charge(
   ledger: Ledger,
   usage: TokenUsage,
   modelCalls: number,
-  usageMissing: boolean
+  price: TokenPrice
 ): number {
-  const costUsd = estimateCostUsd(usage);
-  ledger.spentUsd = roundUsd(ledger.spentUsd + costUsd);
-  ledger.totals.estimatedCostUsd = ledger.spentUsd;
-  ledger.totals.modelCalls += modelCalls;
-  ledger.totals.promptTokens += usage.prompt_tokens;
-  ledger.totals.completionTokens += usage.completion_tokens;
-  ledger.totals.cachedPromptTokens += usage.cached_tokens ?? 0;
-  if (usageMissing) ledger.totals.callsMissingUsage += 1;
+  const costUsd = estimateCostUsd(usage, price);
+  ledger.invocationSpentUsd = roundUsd(ledger.invocationSpentUsd + costUsd);
+  ledger.invocationCalls += modelCalls;
   return costUsd;
 }
 
 function assertBudget(ledger: Ledger): void {
-  if (ledger.spentUsd >= ledger.maxCostUsd) {
-    throw new BudgetExceededError(ledger.spentUsd, ledger.maxCostUsd);
+  if (ledger.invocationSpentUsd >= ledger.maxCostUsd) {
+    throw new BudgetExceededError(ledger.invocationSpentUsd, ledger.maxCostUsd);
+  }
+  if (ledger.invocationCalls >= ledger.maxCalls) {
+    throw new CallBudgetExceededError(ledger.invocationCalls, ledger.maxCalls);
   }
 }
 
@@ -79,6 +100,7 @@ interface LoopOutcome {
   reachedTarget: boolean;
   error: string | null;
   aborted: boolean;
+  abortReason: string | null;
 }
 
 function toJudge(attempt: LoopAttempt): JudgeRecord {
@@ -87,6 +109,19 @@ function toJudge(attempt: LoopAttempt): JudgeRecord {
     breakdown: attempt.evaluation.score_breakdown,
     violations: attempt.evaluation.violations,
     notes: attempt.evaluation.notes,
+  };
+}
+
+function storedCall(call: CallLogEntry): AttemptCall {
+  return {
+    role: call.role,
+    latencyMs: call.latencyMs,
+    promptTokens: call.promptTokens,
+    completionTokens: call.completionTokens,
+    cachedTokens: call.cachedTokens,
+    costUsd: call.costUsd,
+    modelCalls: call.modelCalls,
+    usageMissing: call.usageMissing,
   };
 }
 
@@ -124,33 +159,78 @@ function materializeAttempts(
       },
       costUsd: roundUsd(calls.reduce((sum, call) => sum + call.costUsd, 0)),
       latencyMs: calls.reduce((sum, call) => sum + call.latencyMs, 0),
-      calls: calls.map((call) => ({
-        role: call.role,
-        latencyMs: call.latencyMs,
-        promptTokens: call.promptTokens,
-        completionTokens: call.completionTokens,
-        cachedTokens: call.cachedTokens,
-        costUsd: call.costUsd,
-        modelCalls: call.modelCalls,
-        usageMissing: call.usageMissing,
-      })),
+      calls: calls.map(storedCall),
       error: partialError,
     };
   });
 }
 
-async function runOnce(options: {
+function attachLogs(attempts: AttemptRecord[], logs: CallLogEntry[]): AttemptRecord[] {
+  if (logs.length === 0) return attempts;
+  return attempts.map((attempt) => {
+    const extra = logs.filter((call) => call.attemptIndex === attempt.index);
+    if (extra.length === 0) return attempt;
+    const calls = [...attempt.calls, ...extra.map(storedCall)];
+    return {
+      ...attempt,
+      calls,
+      tokens: {
+        prompt: calls.reduce((sum, call) => sum + call.promptTokens, 0),
+        completion: calls.reduce((sum, call) => sum + call.completionTokens, 0),
+        cached: calls.reduce((sum, call) => sum + call.cachedTokens, 0),
+      },
+      costUsd: roundUsd(calls.reduce((sum, call) => sum + call.costUsd, 0)),
+      latencyMs: calls.reduce((sum, call) => sum + call.latencyMs, 0),
+    };
+  });
+}
+
+function combineAttempts(
+  kept: AttemptRecord[],
+  logs: CallLogEntry[],
+  startAttempt: number,
+  task: EvalTask,
+  policies: Policy[],
+  scored: LoopAttempt[],
+  outputs: Map<number, string>
+): AttemptRecord[] {
+  const keptWithLogs = attachLogs(
+    kept,
+    logs.filter((call) => call.attemptIndex < startAttempt)
+  );
+  const fresh = materializeAttempts(
+    task,
+    policies,
+    scored,
+    logs.filter((call) => call.attemptIndex >= startAttempt),
+    outputs
+  );
+  return [...keptWithLogs, ...fresh];
+}
+
+interface RunOnceOptions {
   task: EvalTask;
   policy: Policy;
   maxAttempts: number;
   targetScore: number;
   client: RoleClient;
   ledger: Ledger;
-}): Promise<LoopOutcome> {
+  price: TokenPrice;
+  delayMs: number;
+  sleep: (ms: number) => Promise<void>;
+  startAttempt?: number;
+  keptAttempts?: AttemptRecord[];
+  /** Patch this scored attempt before continuing. Its patch never landed. */
+  resumePatch?: AttemptRecord;
+}
+
+async function runOnce(options: RunOnceOptions): Promise<LoopOutcome> {
   const logs: CallLogEntry[] = [];
   const outputs = new Map<number, string>();
   const scored: LoopAttempt[] = [];
   const policies: Policy[] = [options.policy];
+  const kept = (options.keptAttempts ?? []).map((attempt) => structuredClone(attempt));
+  const startAttempt = options.startAttempt ?? 1;
 
   async function meter<T extends { usage?: TokenUsage; attempts?: number }>(
     attemptIndex: number,
@@ -158,17 +238,15 @@ async function runOnce(options: {
     fn: () => Promise<T>
   ): Promise<T> {
     assertBudget(options.ledger);
+    if (options.delayMs > 0 && options.ledger.invocationCalls > 0) {
+      await options.sleep(options.delayMs);
+    }
     const started = performance.now();
     try {
       const result = await fn();
       const usageMissing = result.usage === undefined;
       const usage = result.usage ?? emptyUsage();
-      const costUsd = charge(
-        options.ledger,
-        usage,
-        result.attempts ?? 1,
-        usageMissing
-      );
+      const costUsd = charge(options.ledger, usage, result.attempts ?? 1, options.price);
       logs.push({
         attemptIndex,
         role,
@@ -183,7 +261,7 @@ async function runOnce(options: {
       return result;
     } catch (error) {
       if (error instanceof InvalidJsonError) {
-        const costUsd = charge(options.ledger, error.usage, error.attempts, false);
+        const costUsd = charge(options.ledger, error.usage, error.attempts, options.price);
         logs.push({
           attemptIndex,
           role,
@@ -224,22 +302,99 @@ async function runOnce(options: {
       taskText: string,
       outputText: string,
       evaluation: EvaluatorOutput,
-      policy: Policy
+      policy: Policy,
+      patchContext?: PatchContext
     ) => {
       const result = await meter(attemptIndex, "patcher", () =>
-        options.client.patcher(attemptIndex, taskText, outputText, evaluation, policy)
+        options.client.patcher(
+          attemptIndex,
+          taskText,
+          outputText,
+          evaluation,
+          policy,
+          patchContext
+        )
       );
       return PatchOutputSchema.parse(result.data);
     },
   };
 
+  function outcomeFrom(error: unknown | null, reachedTarget: boolean): LoopOutcome {
+    const attempts = combineAttempts(
+      kept,
+      logs,
+      startAttempt,
+      options.task,
+      policies,
+      scored,
+      outputs
+    );
+    if (error && isBudgetError(error)) {
+      return {
+        attempts,
+        finalPolicy: clonePolicy(policies[policies.length - 1]!),
+        reachedTarget: false,
+        error: null,
+        aborted: true,
+        abortReason: error.message,
+      };
+    }
+    return {
+      attempts,
+      finalPolicy: clonePolicy(policies[policies.length - 1]!),
+      reachedTarget,
+      error: error ? errorMessage(error) : null,
+      aborted: false,
+      abortReason: null,
+    };
+  }
+
+  const resumePatch = options.resumePatch;
+  const resumeJudge = resumePatch?.judge;
+  if (resumePatch && resumeJudge) {
+    try {
+      const evaluation = EvaluatorOutputSchema.parse({
+        score_total: resumeJudge.score,
+        score_breakdown: resumeJudge.breakdown,
+        violations: resumeJudge.violations,
+        notes: resumeJudge.notes,
+      });
+      const patch = await client.patcher(
+        resumePatch.index,
+        options.task.prompt,
+        resumePatch.outputText,
+        evaluation,
+        policies[policies.length - 1]!,
+        {
+          hardCheckFailures: resumePatch.hardChecks.results
+            .filter((item) => !item.pass)
+            .map((item) => ({ id: item.id, type: item.type, message: item.message })),
+        }
+      );
+      policies.push(applyPatch(policies[policies.length - 1]!, patch));
+    } catch (error) {
+      return outcomeFrom(error, false);
+    }
+  }
+
   try {
     const result = await runImprovementLoop({
       taskText: options.task.prompt,
-      initialPolicy: options.policy,
+      initialPolicy: policies[policies.length - 1]!,
       maxAttempts: options.maxAttempts,
       targetScore: options.targetScore,
+      startAttempt,
       client,
+      assess: ({ outputText, judgeScore }) => {
+        const hardChecks = runHardChecks(outputText, options.task.checks);
+        return {
+          total: compositeTotal(hardChecks.passRate, judgeScore),
+          hardChecksPass: hardChecks.passed === hardChecks.total,
+          hardCheckFailures: hardChecks.results
+            .filter((item) => !item.pass)
+            .map((item) => ({ id: item.id, type: item.type, message: item.message })),
+        };
+      },
       hooks: {
         onAttempt: async (attempt) => {
           scored.push(attempt);
@@ -249,31 +404,9 @@ async function runOnce(options: {
         },
       },
     });
-    return {
-      attempts: materializeAttempts(options.task, policies, scored, logs, outputs),
-      finalPolicy: clonePolicy(policies[policies.length - 1]!),
-      reachedTarget: result.reachedTarget,
-      error: null,
-      aborted: false,
-    };
+    return outcomeFrom(null, result.reachedTarget);
   } catch (error) {
-    const attempts = materializeAttempts(options.task, policies, scored, logs, outputs);
-    if (error instanceof BudgetExceededError) {
-      return {
-        attempts,
-        finalPolicy: clonePolicy(policies[policies.length - 1]!),
-        reachedTarget: false,
-        error: null,
-        aborted: true,
-      };
-    }
-    return {
-      attempts,
-      finalPolicy: clonePolicy(policies[policies.length - 1]!),
-      reachedTarget: false,
-      error: errorMessage(error),
-      aborted: false,
-    };
+    return outcomeFrom(error, false);
   }
 }
 
@@ -286,72 +419,202 @@ function taskMeta(task: EvalTask) {
   };
 }
 
+function scoredPrefix(attempts: AttemptRecord[]): AttemptRecord[] {
+  const sorted = [...attempts].sort((left, right) => left.index - right.index);
+  const prefix: AttemptRecord[] = [];
+  for (const attempt of sorted) {
+    if (attempt.judge === null) break;
+    if (attempt.index !== prefix.length + 1) break;
+    prefix.push(attempt);
+  }
+  return prefix;
+}
+
+function attemptMeetsTarget(attempt: AttemptRecord, targetScore: number): boolean {
+  return meetsLoopTarget({
+    total: attempt.total,
+    hardPassed: attempt.hardChecks.passed,
+    hardTotal: attempt.hardChecks.total,
+    targetScore,
+  });
+}
+
+function isTrainingRunComplete(
+  run: TrainingRunRecord,
+  maxAttempts: number,
+  targetScore: number
+): boolean {
+  const prefix = scoredPrefix(run.attempts);
+  if (prefix.length === 0) return false;
+  if (prefix.some((attempt) => attemptMeetsTarget(attempt, targetScore))) return true;
+  return prefix.length >= maxAttempts;
+}
+
+function needsResumePatch(
+  run: TrainingRunRecord,
+  prefix: AttemptRecord[],
+  maxAttempts: number,
+  targetScore: number
+): boolean {
+  if (prefix.length === 0) return false;
+  const last = prefix[prefix.length - 1]!;
+  if (attemptMeetsTarget(last, targetScore)) return false;
+  if (last.index >= maxAttempts) return false;
+  return run.finalPolicy.version <= last.policyVersion;
+}
+
+function passComplete(pass: ScoredPass | undefined): boolean {
+  return Boolean(pass && pass.error === null && pass.attempt?.judge);
+}
+
+function sameTrainingTaskIds(prior: EvalResults, tasks: readonly EvalTask[]): boolean {
+  const current = tasks.filter((task) => task.split === "train").map((task) => task.id);
+  const previous = prior.training.map((task) => task.id);
+  return (
+    current.length === previous.length &&
+    current.every((id, index) => id === previous[index])
+  );
+}
+
+function totalsFrom(training: TrainingTaskRecord[], heldOut: HeldOutTaskRecord[]): EvalTotals {
+  const totals = freshTotals();
+  const attempts: AttemptRecord[] = [];
+  for (const task of training) {
+    for (const run of task.runs) attempts.push(...run.attempts);
+  }
+  for (const task of heldOut) {
+    for (const run of task.runs) {
+      if (run.initial.attempt) attempts.push(run.initial.attempt);
+      if (run.learned.attempt) attempts.push(run.learned.attempt);
+    }
+  }
+  for (const attempt of attempts) {
+    for (const call of attempt.calls) {
+      totals.modelCalls += call.modelCalls;
+      totals.promptTokens += call.promptTokens;
+      totals.completionTokens += call.completionTokens;
+      totals.cachedPromptTokens += call.cachedTokens;
+      totals.estimatedCostUsd = roundUsd(totals.estimatedCostUsd + call.costUsd);
+      if (call.usageMissing) totals.callsMissingUsage += 1;
+    }
+  }
+  return totals;
+}
+
 export interface RunSuiteOptions {
   tasks: readonly EvalTask[];
   runs: number;
   maxAttempts: number;
   targetScore: number;
   maxCostUsd: number;
+  /** Null or omitted means this invocation has no call cap. */
+  maxCalls?: number | null;
+  delayMs?: number;
   dryRun: boolean;
   model: string;
   client: RoleClient;
   now?: Date;
   logger?: (line: string) => void;
+  prior?: EvalResults | null;
+  resumedFrom?: string | null;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export async function runSuite(options: RunSuiteOptions): Promise<EvalResults> {
   const logger = options.logger ?? (() => {});
+  const delayMs = options.delayMs ?? 0;
+  const maxCalls = options.maxCalls ?? null;
+  const price = priceForModel(options.model);
   const ledger: Ledger = {
     maxCostUsd: options.maxCostUsd,
-    spentUsd: 0,
-    totals: freshTotals(),
+    maxCalls: maxCalls ?? Number.POSITIVE_INFINITY,
+    invocationSpentUsd: 0,
+    invocationCalls: 0,
   };
+  const sleep = options.sleep ?? sleepMs;
   const initialPolicy = clonePolicy(DEFAULT_POLICY);
   const trainingTasks = options.tasks.filter((task) => task.split === "train");
   const heldOutTasks = options.tasks.filter((task) => task.split === "heldout");
+  const prior = options.prior ?? null;
   const training: TrainingTaskRecord[] = [];
   const heldOut: HeldOutTaskRecord[] = [];
   const learnedSources: Policy[] = [];
   let aborted = false;
   let abortReason: string | null = null;
   let heldOutSkippedReason: string | null = null;
+  let trainingRewritten = prior !== null && !sameTrainingTaskIds(prior, options.tasks);
 
   const stop = (reason: string) => {
     aborted = true;
     abortReason = reason;
   };
 
+  const once = (task: EvalTask, extra: Partial<RunOnceOptions> = {}) =>
+    runOnce({
+      task,
+      policy: clonePolicy(initialPolicy),
+      maxAttempts: options.maxAttempts,
+      targetScore: options.targetScore,
+      client: options.client,
+      ledger,
+      price,
+      delayMs,
+      sleep,
+      ...extra,
+    });
+
   for (const task of trainingTasks) {
     const record: TrainingTaskRecord = { ...taskMeta(task), runs: [] };
     training.push(record);
+    const priorTask = prior?.training.find((item) => item.id === task.id);
     for (let run = 1; run <= options.runs; run++) {
-      logger(`[train] ${task.id} run ${run}/${options.runs}`);
-      const outcome = await runOnce({
-        task,
-        policy: clonePolicy(initialPolicy),
-        maxAttempts: options.maxAttempts,
-        targetScore: options.targetScore,
-        client: options.client,
-        ledger,
+      const priorRun = priorTask?.runs.find((item) => item.run === run);
+      if (priorRun && isTrainingRunComplete(priorRun, options.maxAttempts, options.targetScore)) {
+        const cloned = structuredClone(priorRun);
+        record.runs.push(cloned);
+        learnedSources.push(clonePolicy(cloned.finalPolicy));
+        logger(`[train] ${task.id} run ${run} skipped (already complete)`);
+        continue;
+      }
+
+      if (prior) trainingRewritten = true;
+      const prefix = priorRun ? scoredPrefix(priorRun.attempts) : [];
+      const kept = prefix.map((attempt) => structuredClone(attempt));
+      const policy =
+        prefix.length > 0 && priorRun
+          ? clonePolicy(priorRun.finalPolicy)
+          : clonePolicy(initialPolicy);
+      const resumePatch =
+        priorRun && needsResumePatch(priorRun, prefix, options.maxAttempts, options.targetScore)
+          ? kept[kept.length - 1]
+          : undefined;
+      logger(
+        `[train] ${task.id} run ${run}/${options.runs}` +
+          (prefix.length > 0 ? ` resuming at attempt ${prefix.length + 1}` : "")
+      );
+      const outcome = await once(task, {
+        policy,
+        startAttempt: prefix.length + 1,
+        keptAttempts: kept,
+        resumePatch,
       });
-      const stored: TrainingRunRecord = {
+      record.runs.push({
         run,
         reachedTarget: outcome.reachedTarget,
         error: outcome.error,
         finalPolicy: outcome.finalPolicy,
         attempts: outcome.attempts,
-      };
-      record.runs.push(stored);
+      });
       learnedSources.push(outcome.finalPolicy);
       const last = outcome.attempts[outcome.attempts.length - 1];
       logger(
         `[train] ${task.id} run ${run} attempts ${outcome.attempts.length} ` +
-          `judge ${last?.judge?.score ?? "n/a"} hard ${
+          `judge ${last?.judge?.score ?? "n/a"} total ${last?.total ?? "n/a"} hard ${
             last ? `${last.hardChecks.passed}/${last.hardChecks.total}` : "n/a"
-          } spent $${ledger.spentUsd}`
+          } spent $${ledger.invocationSpentUsd}`
       );
       if (outcome.aborted) {
-        stop(new BudgetExceededError(ledger.spentUsd, ledger.maxCostUsd).message);
+        stop(outcome.abortReason ?? "The run aborted.");
         break;
       }
     }
@@ -367,41 +630,48 @@ export async function runSuite(options: RunSuiteOptions): Promise<EvalResults> {
     for (const task of heldOutTasks) {
       const record: HeldOutTaskRecord = { ...taskMeta(task), runs: [] };
       heldOut.push(record);
+      const priorTask = prior?.heldOut.find((item) => item.id === task.id);
       for (let run = 1; run <= options.runs; run++) {
-        logger(`[held-out] ${task.id} run ${run}/${options.runs} initial policy`);
-        const initial = await runOnce({
-          task,
-          policy: clonePolicy(initialPolicy),
-          maxAttempts: 1,
-          targetScore: options.targetScore,
-          client: options.client,
-          ledger,
-        });
-        if (initial.aborted) {
-          record.runs.push({
-            run,
-            initial: passFrom(initial),
-            learned: { error: null, attempt: null },
-          });
-          stop(new BudgetExceededError(ledger.spentUsd, ledger.maxCostUsd).message);
-          break;
+        const prev = priorTask?.runs.find((item) => item.run === run);
+        let initialPass: ScoredPass;
+        let learnedPass: ScoredPass = { error: null, attempt: null };
+        let passAborted = false;
+        let passAbortReason: string | null = null;
+
+        if (prev && passComplete(prev.initial)) {
+          initialPass = structuredClone(prev.initial);
+          logger(`[held-out] ${task.id} run ${run} initial policy skipped (already complete)`);
+        } else {
+          logger(`[held-out] ${task.id} run ${run}/${options.runs} initial policy`);
+          const initial = await once(task, { maxAttempts: 1 });
+          initialPass = passFrom(initial);
+          if (initial.aborted) {
+            passAborted = true;
+            passAbortReason = initial.abortReason;
+          }
         }
-        logger(`[held-out] ${task.id} run ${run}/${options.runs} learned policy`);
-        const learned = await runOnce({
-          task,
-          policy: clonePolicy(learnedPolicy),
-          maxAttempts: 1,
-          targetScore: options.targetScore,
-          client: options.client,
-          ledger,
-        });
-        record.runs.push({
-          run,
-          initial: passFrom(initial),
-          learned: passFrom(learned),
-        });
-        if (learned.aborted) {
-          stop(new BudgetExceededError(ledger.spentUsd, ledger.maxCostUsd).message);
+
+        if (!passAborted) {
+          if (prev && !trainingRewritten && passComplete(prev.learned)) {
+            learnedPass = structuredClone(prev.learned);
+            logger(`[held-out] ${task.id} run ${run} learned policy skipped (already complete)`);
+          } else {
+            logger(`[held-out] ${task.id} run ${run}/${options.runs} learned policy`);
+            const learned = await once(task, {
+              policy: clonePolicy(learnedPolicy),
+              maxAttempts: 1,
+            });
+            learnedPass = passFrom(learned);
+            if (learned.aborted) {
+              passAborted = true;
+              passAbortReason = learned.abortReason;
+            }
+          }
+        }
+
+        record.runs.push({ run, initial: initialPass, learned: learnedPass });
+        if (passAborted) {
+          stop(passAbortReason ?? "The run aborted.");
           break;
         }
       }
@@ -416,6 +686,7 @@ export async function runSuite(options: RunSuiteOptions): Promise<EvalResults> {
     aborted,
     abortReason,
     heldOutSkippedReason,
+    resumedFrom: options.resumedFrom ?? null,
     config: {
       model: options.model,
       temperature: FIXED_TEMPERATURES,
@@ -423,23 +694,26 @@ export async function runSuite(options: RunSuiteOptions): Promise<EvalResults> {
       targetScore: options.targetScore,
       runs: options.runs,
       maxCostUsd: options.maxCostUsd,
+      maxCalls,
+      delayMs,
       taskIds: options.tasks.map((task) => task.id),
       totalFormula: TOTAL_FORMULA,
       price: {
-        model: "gpt-4o-mini",
-        inputUsdPerMillion: GPT_4O_MINI_PRICE.inputUsdPerMillion,
-        cachedInputUsdPerMillion: GPT_4O_MINI_PRICE.cachedInputUsdPerMillion,
-        outputUsdPerMillion: GPT_4O_MINI_PRICE.outputUsdPerMillion,
-        source: GPT_4O_MINI_PRICE.source,
-        checkedOn: GPT_4O_MINI_PRICE.checkedOn,
-        note: PRICE_NOTE,
+        model: price.model,
+        inputUsdPerMillion: price.inputUsdPerMillion,
+        cachedInputUsdPerMillion: price.cachedInputUsdPerMillion,
+        outputUsdPerMillion: price.outputUsdPerMillion,
+        source: price.source,
+        checkedOn: price.checkedOn,
+        note: price.known ? KNOWN_PRICE_NOTE : UNKNOWN_PRICE_NOTE,
+        known: price.known,
       },
     },
     initialPolicy,
     learnedPolicy,
     training,
     heldOut,
-    totals: ledger.totals,
+    totals: totalsFrom(training, heldOut),
   };
 }
 

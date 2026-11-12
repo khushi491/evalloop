@@ -14,7 +14,21 @@
  * The integer rates below are micro-USD per 1M tokens (1 USD = 1_000_000 micro-USD)
  * and are the source of truth for the arithmetic.
  */
-export const GPT_4O_MINI_PRICE = {
+export interface TokenPrice {
+  model: string;
+  inputUsdPerMillion: number;
+  cachedInputUsdPerMillion: number;
+  outputUsdPerMillion: number;
+  inputMicroUsdPerMillion: number;
+  cachedInputMicroUsdPerMillion: number;
+  outputMicroUsdPerMillion: number;
+  source: string;
+  checkedOn: string;
+  /** False for the free-tier / unknown case. Estimated cost is then $0. */
+  known: boolean;
+}
+
+export const GPT_4O_MINI_PRICE: TokenPrice = {
   model: "gpt-4o-mini",
   inputUsdPerMillion: 0.15,
   cachedInputUsdPerMillion: 0.075,
@@ -24,7 +38,35 @@ export const GPT_4O_MINI_PRICE = {
   outputMicroUsdPerMillion: 600_000,
   source: "https://developers.openai.com/api/docs/models/gpt-4o-mini",
   checkedOn: "2026-11-11",
-} as const;
+  known: true,
+};
+
+/**
+ * Used for every model that does not have an entry in the price table.
+ * Gemini and Groq free-tier runs land here, so they are not billed as gpt-4o-mini.
+ */
+export const FREE_TIER_UNKNOWN_PRICE: TokenPrice = {
+  model: "free tier / unknown",
+  inputUsdPerMillion: 0,
+  cachedInputUsdPerMillion: 0,
+  outputUsdPerMillion: 0,
+  inputMicroUsdPerMillion: 0,
+  cachedInputMicroUsdPerMillion: 0,
+  outputMicroUsdPerMillion: 0,
+  source: "n/a",
+  checkedOn: "n/a",
+  known: false,
+};
+
+const PRICE_BY_MODEL: Readonly<Record<string, TokenPrice>> = {
+  "gpt-4o-mini": GPT_4O_MINI_PRICE,
+};
+
+/** Price row for a model id. Unknown models, including other providers, use the free-tier case. */
+export function priceForModel(model: string): TokenPrice {
+  const key = model.trim().toLowerCase();
+  return PRICE_BY_MODEL[key] ?? FREE_TIER_UNKNOWN_PRICE;
+}
 
 const MICRO_USD = 1_000_000;
 
@@ -48,15 +90,21 @@ function microFor(tokens: number, microUsdPerMillion: number): number {
 }
 
 /** Estimated USD cost. Rounded to the nearest micro-USD (6 decimal places). */
-export function estimateCostUsd(usage: CostUsage): number {
+export function estimateCostUsd(
+  usage: CostUsage,
+  price: Pick<
+    TokenPrice,
+    "inputMicroUsdPerMillion" | "cachedInputMicroUsdPerMillion" | "outputMicroUsdPerMillion"
+  > = GPT_4O_MINI_PRICE
+): number {
   const prompt = tokenCount(usage.prompt_tokens);
   const completion = tokenCount(usage.completion_tokens);
   const cached = Math.min(tokenCount(usage.cached_tokens ?? 0), prompt);
   const uncached = prompt - cached;
   const micro =
-    microFor(uncached, GPT_4O_MINI_PRICE.inputMicroUsdPerMillion) +
-    microFor(cached, GPT_4O_MINI_PRICE.cachedInputMicroUsdPerMillion) +
-    microFor(completion, GPT_4O_MINI_PRICE.outputMicroUsdPerMillion);
+    microFor(uncached, price.inputMicroUsdPerMillion) +
+    microFor(cached, price.cachedInputMicroUsdPerMillion) +
+    microFor(completion, price.outputMicroUsdPerMillion);
   return micro / MICRO_USD;
 }
 
@@ -71,5 +119,17 @@ export class BudgetExceededError extends Error {
     this.name = "BudgetExceededError";
     this.spentUsd = spentUsd;
     this.maxUsd = maxUsd;
+  }
+}
+
+export class CallBudgetExceededError extends Error {
+  readonly calls: number;
+  readonly maxCalls: number;
+
+  constructor(calls: number, maxCalls: number) {
+    super(`Model calls ${calls} reached the --max-calls limit of ${maxCalls}.`);
+    this.name = "CallBudgetExceededError";
+    this.calls = calls;
+    this.maxCalls = maxCalls;
   }
 }

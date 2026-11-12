@@ -86,10 +86,32 @@ function getConfig() {
   };
 }
 
-const SENSITIVE_PATTERN = /sk-[a-zA-Z0-9]{20,}/g;
-
 function redact(text: string): string {
-  return text.replace(SENSITIVE_PATTERN, "sk-***REDACTED***");
+  return text
+    .replace(/sk-[a-zA-Z0-9]{20,}/g, "sk-***REDACTED***")
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "AIza***REDACTED***");
+}
+
+const MAX_TRANSIENT_RETRIES = 6;
+
+function isTransientStatus(status: number): boolean {
+  return status === 429 || status === 503;
+}
+
+/** Delay before the next retry after a 429. Honors Retry-After when it is a delay in seconds. */
+export function retryAfterMs(attempt: number, retryAfterHeader: string | null): number {
+  if (retryAfterHeader) {
+    const seconds = Number(retryAfterHeader);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1000, 60_000);
+    }
+  }
+  return Math.min(6_000 * 2 ** attempt, 60_000);
+}
+
+export async function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function chatCompletion(
@@ -105,20 +127,35 @@ export async function chatCompletion(
     max_tokens: options?.maxTokens ?? 2048,
   };
 
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${cfg.apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response | undefined;
+  let errText = "unknown error";
+  for (let attempt = 0; attempt <= MAX_TRANSIENT_RETRIES; attempt++) {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "unknown error");
-    throw new Error(
-      `LLM API error (${res.status}): ${redact(errText)}`
-    );
+    if (res.ok) break;
+
+    errText = await res.text().catch(() => "unknown error");
+    if (isTransientStatus(res.status) && attempt < MAX_TRANSIENT_RETRIES) {
+      const delay = retryAfterMs(attempt, res.headers.get("Retry-After"));
+      const reason = res.status === 429 ? "rate limited" : "unavailable";
+      console.warn(
+        `[llm] ${res.status} ${reason}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_TRANSIENT_RETRIES})`
+      );
+      await sleep(delay);
+      continue;
+    }
+    throw new Error(`LLM API error (${res.status}): ${redact(errText)}`);
+  }
+
+  if (!res || !res.ok) {
+    throw new Error(`LLM API error (${res?.status ?? "unknown"}): ${redact(errText)}`);
   }
 
   const data = await res.json();

@@ -77,12 +77,31 @@ Return ONLY the JSON object.`,
   ];
 }
 
+export interface PromptHardCheckFailure {
+  id: string;
+  type: string;
+  message: string;
+}
+
 export function buildPatcherMessages(
   taskText: string,
   outputText: string,
   evaluation: EvaluatorOutput,
-  policy: Policy
+  policy: Policy,
+  hardCheckFailures?: readonly PromptHardCheckFailure[]
 ) {
+  const failures = hardCheckFailures ?? [];
+  const failureSection =
+    failures.length === 0
+      ? ""
+      : `\n## Hard-check failures\nThese deterministic checks failed. Fix them together with the evaluator result.\n${failures
+          .map((failure) => `- (${failure.id}) ${failure.message}`)
+          .join("\n")}\n`;
+  const failureInstruction =
+    failures.length === 0
+      ? ""
+      : "\n- Add specific rules or checklist items that make each hard-check failure pass.";
+
   return [
     {
       role: "system" as const,
@@ -105,12 +124,12 @@ ${outputText}
 
 ## Evaluator Result
 ${JSON.stringify(evaluation, null, 2)}
-
+${failureSection}
 ## Current Policy
 ${JSON.stringify(policy, null, 2)}
 
 ## Instructions
-- Add rules/checklist items that would PREVENT the violations found.
+- Add rules/checklist items that would PREVENT the violations found.${failureInstruction}
 - Remove rules that are redundant or counterproductive.
 - Maximum 5 new rules per patch.
 - Prefer specific, testable rules over vague guidelines.

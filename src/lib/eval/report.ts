@@ -36,6 +36,20 @@ function temperatureLine(results: EvalResults): string {
   return `runner ${temperature.runner}, evaluator ${temperature.evaluator}, patcher ${temperature.patcher}`;
 }
 
+function maxCallsLabel(results: EvalResults): string {
+  const value = results.config.maxCalls;
+  if (value === null || value === undefined) return "none";
+  return String(value);
+}
+
+function priceSentence(results: EvalResults): string {
+  const price = results.config.price;
+  if (price.known === false) {
+    return `Price table: ${price.model}. No token price is configured for ${results.config.model}, so estimated cost is $0. ${price.note}`;
+  }
+  return `Price table for ${price.model}, checked ${price.checkedOn} (${price.source}): input ${formatUsd(price.inputUsdPerMillion)} per 1M tokens, cached input ${formatUsd(price.cachedInputUsdPerMillion)} per 1M tokens, output ${formatUsd(price.outputUsdPerMillion)} per 1M tokens. ${price.note}`;
+}
+
 function errorLines(prefix: string, id: string, errors: string[]): string[] {
   return errors.map((error) => `- ${prefix}\`${id}\`: ${error}`);
 }
@@ -53,6 +67,12 @@ export function renderResultsMarkdown(results: EvalResults): string {
   if (results.aborted && results.abortReason) {
     lines.push(`The run aborted before it finished. ${results.abortReason}`, "");
   }
+  if (results.resumedFrom) {
+    lines.push(
+      `Resumed from \`${results.resumedFrom}\`. Call costs recorded on earlier attempts are kept.`,
+      ""
+    );
+  }
 
   lines.push(
     `Generated: ${results.generatedAt}`,
@@ -64,14 +84,16 @@ export function renderResultsMarkdown(results: EvalResults): string {
     `| Model | ${results.config.model} |`,
     `| Temperature | ${temperatureLine(results)} |`,
     `| Max attempts | ${results.config.maxAttempts} |`,
-    `| Target judge score | ${results.config.targetScore} |`,
+    `| Target total | ${results.config.targetScore} |`,
     `| Runs per task | ${results.config.runs} |`,
     `| Max cost | ${formatUsd(results.config.maxCostUsd)} |`,
+    `| Max calls | ${maxCallsLabel(results)} |`,
+    `| Delay between calls | ${results.config.delayMs ?? 0} ms |`,
     `| Tasks | ${results.config.taskIds.join(", ")} |`,
     "",
-    `Price table for gpt-4o-mini, checked ${results.config.price.checkedOn} (${results.config.price.source}): input ${formatUsd(results.config.price.inputUsdPerMillion)} per 1M tokens, cached input ${formatUsd(results.config.price.cachedInputUsdPerMillion)} per 1M tokens, output ${formatUsd(results.config.price.outputUsdPerMillion)} per 1M tokens. ${results.config.price.note}`,
+    priceSentence(results),
     "",
-    `Total for an attempt is \`${results.config.totalFormula}\`. The judge score is the rubric total from the five 0–5 categories. The improvement loop stops when that judge score reaches the target. Hard checks are scored beside the judge and are not shown to the patcher.`,
+    `Total for an attempt is \`${results.config.totalFormula}\`. The judge score is the rubric total from the five 0–5 categories and is reported on its own. The hard-check rate is the share of deterministic checks that passed and is also reported on its own. The total blends those two, so a perfect judge score cannot hide a failed check. The loop stops when the total reaches the target and every hard check passes. Hard-check failures are sent to the patcher with the judge feedback.`,
     "",
     "When a task is repeated, each cell is the mean across runs that have a judge score. The average row is the unweighted mean across those tasks, and its total is recomputed from that mean hard-check rate and mean judge score.",
     "",

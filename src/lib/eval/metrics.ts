@@ -1,8 +1,22 @@
-/** Integer average of the hard-check percentage and the judge score, both on a 0–100 scale. */
+/**
+ * Integer average of the hard-check percentage and the judge score, both on a 0–100 scale.
+ * The eval loop compares this total with the target and also requires every hard check to pass.
+ */
 export const TOTAL_FORMULA = "round((hardCheckPassRate * 100 + judgeScore) / 2)";
 
 export function compositeTotal(hardPassRate: number, judgeScore: number): number {
   return Math.round((hardPassRate * 100 + judgeScore) / 2);
+}
+
+/** True when the blended total has reached the target and no hard check failed. */
+export function meetsLoopTarget(options: {
+  total: number | null;
+  hardPassed: number;
+  hardTotal: number;
+  targetScore: number;
+}): boolean {
+  if (options.total === null || !Number.isFinite(options.total)) return false;
+  return options.total >= options.targetScore && options.hardPassed === options.hardTotal;
 }
 
 /**

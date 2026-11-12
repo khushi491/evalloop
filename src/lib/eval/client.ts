@@ -1,3 +1,4 @@
+import type { PatchContext } from "../improvement-loop";
 import {
   chatCompletion,
   chatCompletionJSONDetailed,
@@ -40,7 +41,8 @@ export interface RoleClient {
     taskText: string,
     outputText: string,
     evaluation: EvaluatorOutput,
-    policy: Policy
+    policy: Policy,
+    patchContext?: PatchContext
   ): Promise<RoleResult & { data: unknown }>;
 }
 
@@ -85,9 +87,15 @@ function liveClient(): RoleClient {
       );
       return { data: response.data, usage: response.usage, attempts: response.attempts };
     },
-    async patcher(_attemptIndex, taskText, outputText, evaluation, policy) {
+    async patcher(_attemptIndex, taskText, outputText, evaluation, policy, patchContext) {
       const response = await chatCompletionJSONDetailed(
-        buildPatcherMessages(taskText, outputText, evaluation, policy),
+        buildPatcherMessages(
+          taskText,
+          outputText,
+          evaluation,
+          policy,
+          patchContext?.hardCheckFailures
+        ),
         { temperature: PATCHER_TEMPERATURE }
       );
       return { data: response.data, usage: response.usage, attempts: response.attempts };

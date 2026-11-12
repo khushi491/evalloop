@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { summarizeEval } from "../src/lib/eval/aggregate";
-import { GPT_4O_MINI_PRICE, estimateCostUsd } from "../src/lib/eval/cost";
+import { GPT_4O_MINI_PRICE, estimateCostUsd, priceForModel } from "../src/lib/eval/cost";
 import { mergeLearnedPolicies, policyDelta } from "../src/lib/eval/merge";
 import {
   TOTAL_FORMULA,
@@ -91,6 +91,22 @@ describe("cost math", () => {
     expect(estimateCostUsd({ prompt_tokens: -5, completion_tokens: Number.NaN })).toBe(0);
   });
 
+  it("prices unknown models, including Gemini and Groq, as free tier / unknown", () => {
+    const gemini = priceForModel("gemini-3.5-flash");
+    const groq = priceForModel("llama-3.3-70b-versatile");
+    expect(gemini.model).toBe("free tier / unknown");
+    expect(gemini.known).toBe(false);
+    expect(groq).toEqual(gemini);
+    expect(
+      estimateCostUsd(
+        { prompt_tokens: 1_000_000, completion_tokens: 1_000_000, cached_tokens: 1_000_000 },
+        gemini
+      )
+    ).toBe(0);
+    expect(priceForModel("gpt-4o-mini")).toEqual(GPT_4O_MINI_PRICE);
+    expect(priceForModel("GPT-4o-mini").inputUsdPerMillion).toBe(0.15);
+  });
+
   it("formats sub-cent amounts without pretending they are zero", () => {
     expect(formatUsd(0)).toBe("$0.00");
     expect(formatUsd(3)).toBe("$3.00");
@@ -163,6 +179,7 @@ describe("aggregation and the results report", () => {
       aborted: false,
       abortReason: null,
       heldOutSkippedReason: null,
+      resumedFrom: null,
       config: {
         model: "gpt-4o-mini",
         temperature: { runner: 0.4, evaluator: 0.1, patcher: 0.2 },
@@ -170,6 +187,8 @@ describe("aggregation and the results report", () => {
         targetScore: 90,
         runs: 2,
         maxCostUsd: 3,
+        maxCalls: null,
+        delayMs: 0,
         taskIds: ["alpha", "beta", "held"],
         totalFormula: TOTAL_FORMULA,
         price: {
@@ -180,6 +199,7 @@ describe("aggregation and the results report", () => {
           source: GPT_4O_MINI_PRICE.source,
           checkedOn: GPT_4O_MINI_PRICE.checkedOn,
           note: "Cached input is priced only when the API reports cached prompt tokens.",
+          known: true,
         },
       },
       initialPolicy: initial,
@@ -319,7 +339,28 @@ describe("aggregation and the results report", () => {
     expect(markdown).toContain("| Estimated cost | $0.00057 |");
     expect(markdown).toContain("| Model calls | 11 |");
     expect(markdown).toContain(TOTAL_FORMULA);
+    expect(markdown).toContain("every hard check passes");
+    expect(markdown).toContain("| Max calls | none |");
     expect(markdown.toLowerCase()).not.toContain("hackathon");
+  });
+
+  it("describes an unpriced model as free tier / unknown", () => {
+    const sample = results();
+    sample.config.model = "gemini-3.5-flash";
+    sample.config.price = {
+      model: "free tier / unknown",
+      inputUsdPerMillion: 0,
+      cachedInputUsdPerMillion: 0,
+      outputUsdPerMillion: 0,
+      source: "n/a",
+      checkedOn: "n/a",
+      note: "Estimated cost is $0. Token spend is estimated only for a model with a configured price.",
+      known: false,
+    };
+    const markdown = renderResultsMarkdown(sample);
+    expect(markdown).toContain("Price table: free tier / unknown.");
+    expect(markdown).toContain("gemini-3.5-flash");
+    expect(markdown).not.toContain("input $0.15 per 1M tokens");
   });
 
   it("plans 68 model calls for the default full suite", () => {

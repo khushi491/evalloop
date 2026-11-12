@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chatCompletion, chatCompletionJSON, chatCompletionJSONDetailed } from "../src/lib/llm";
+import { chatCompletion, chatCompletionJSON, chatCompletionJSONDetailed, retryAfterMs } from "../src/lib/llm";
 import { EvaluatorOutputSchema } from "../src/lib/schemas";
 import { validEvaluator } from "./fixtures";
 
 const originalKey = process.env.OPENAI_API_KEY;
 const originalBaseUrl = process.env.OPENAI_BASE_URL;
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers(headers),
     json: async () => body,
     text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
   };
@@ -31,6 +32,7 @@ afterEach(() => {
   else process.env.OPENAI_BASE_URL = originalBaseUrl;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("chatCompletion", () => {
@@ -85,6 +87,78 @@ describe("chatCompletion", () => {
       expect(message).toContain("sk-***REDACTED***");
       expect(message).not.toContain(leaked);
     }
+  });
+
+  it("redacts Gemini API key-shaped tokens in API error bodies", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "https://example.test/v1";
+    const leaked = "AIzaSyabcdefghijklmnopqrstuvwx1234567";
+    mockFetch(() => jsonResponse(`unauthorized ${leaked}`, 401));
+
+    try {
+      await chatCompletion([{ role: "user", content: "Hello" }]);
+      expect.fail("expected the API error to be thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toContain("AIza***REDACTED***");
+      expect(message).not.toContain(leaked);
+    }
+  });
+
+  it("retries a 429 and then returns the completion", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "https://example.test/v1";
+    vi.useFakeTimers();
+    let call = 0;
+    const fetchMock = mockFetch(() => {
+      call += 1;
+      if (call === 1) {
+        return jsonResponse("rate limited", 429, { "Retry-After": "2" });
+      }
+      return jsonResponse({
+        choices: [{ message: { content: "ok" } }],
+      });
+    });
+
+    const pending = chatCompletion([{ role: "user", content: "Hello" }]);
+    await vi.runAllTimersAsync();
+    await expect(pending).resolves.toEqual({ content: "ok", usage: undefined });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a 503 unavailable response and then returns the completion", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "https://example.test/v1";
+    vi.useFakeTimers();
+    let call = 0;
+    const fetchMock = mockFetch(() => {
+      call += 1;
+      if (call === 1) {
+        return jsonResponse("high demand", 503);
+      }
+      return jsonResponse({
+        choices: [{ message: { content: "ok" } }],
+      });
+    });
+
+    const pending = chatCompletion([{ role: "user", content: "Hello" }]);
+    await vi.runAllTimersAsync();
+    await expect(pending).resolves.toEqual({ content: "ok", usage: undefined });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops retrying 429s after the maximum number of attempts", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "https://example.test/v1";
+    vi.useFakeTimers();
+    const fetchMock = mockFetch(() => jsonResponse("slow down", 429));
+
+    const pending = chatCompletion([{ role: "user", content: "Hello" }]);
+    const expectation = expect(pending).rejects.toThrow(/LLM API error \(429\)/);
+    await vi.runAllTimersAsync();
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("throws when the completion has no message content", async () => {
@@ -202,5 +276,21 @@ describe("chatCompletionJSON", () => {
 
     const malformed = await chatCompletionJSON([]);
     expect(EvaluatorOutputSchema.safeParse(malformed).success).toBe(false);
+  });
+});
+
+describe("retryAfterMs", () => {
+  it("honors a numeric Retry-After header, capped at 60s", () => {
+    expect(retryAfterMs(0, "2")).toBe(2000);
+    expect(retryAfterMs(0, "120")).toBe(60_000);
+  });
+
+  it("falls back to exponential backoff when Retry-After is missing or not a number", () => {
+    expect(retryAfterMs(0, null)).toBe(6_000);
+    expect(retryAfterMs(1, null)).toBe(12_000);
+    expect(retryAfterMs(2, "later")).toBe(24_000);
+    expect(retryAfterMs(3, null)).toBe(48_000);
+    expect(retryAfterMs(4, null)).toBe(60_000);
+    expect(retryAfterMs(5, null)).toBe(60_000);
   });
 });

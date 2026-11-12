@@ -46,5 +46,26 @@ describe("prompt builders", () => {
     expect(messages[0].content).toContain("remove_rules");
     expect(messages[1].content).toContain("UNIQUE_TASK");
     expect(messages[1].content).toContain("Safety failure.");
+    expect(messages[1].content).not.toContain("Hard-check failures");
+  });
+
+  it("places hard-check failures next to the evaluator result", () => {
+    const messages = buildPatcherMessages(
+      "UNIQUE_TASK",
+      "UNIQUE_OUTPUT",
+      validEvaluator,
+      DEFAULT_POLICY,
+      [{ id: "need-refund", type: "required_keywords", message: "Missing keywords: refund." }]
+    );
+
+    const user = messages[1].content;
+    const evaluatorAt = user.indexOf("## Evaluator Result");
+    const failureAt = user.indexOf("## Hard-check failures");
+    const policyAt = user.indexOf("## Current Policy");
+    expect(evaluatorAt).toBeGreaterThan(-1);
+    expect(failureAt).toBeGreaterThan(evaluatorAt);
+    expect(policyAt).toBeGreaterThan(failureAt);
+    expect(user).toContain("(need-refund) Missing keywords: refund.");
+    expect(user).toContain("make each hard-check failure pass");
   });
 });

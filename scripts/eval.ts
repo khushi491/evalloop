@@ -1,10 +1,12 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { EVAL_HELP, parseEvalArgs } from "../src/lib/eval/args";
 import { createRoleClient } from "../src/lib/eval/client";
+import { assertResultsFile } from "../src/lib/eval/report";
 import { runSuite } from "../src/lib/eval/suite";
 import { loadTasks, selectTasks } from "../src/lib/eval/tasks";
+import type { EvalResults } from "../src/lib/eval/types";
 import { loadEnvFile } from "./load-env";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,11 +52,40 @@ async function main() {
     fail(error instanceof Error ? error.message : String(error));
   }
 
+  let prior: EvalResults | null = null;
+  let resumedFrom: string | null = null;
+  if (args.resume) {
+    const resumePath = path.resolve(process.cwd(), args.resume);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(resumePath, "utf8"));
+    } catch (error) {
+      fail(
+        `Could not read --resume file ${resumePath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+    try {
+      prior = assertResultsFile(parsed);
+    } catch (error) {
+      fail(
+        `Could not use --resume file ${resumePath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+    resumedFrom = resumePath;
+  }
+
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const callCap = args.maxCalls === null ? "none" : String(args.maxCalls);
   console.log(
     `EvalLoop eval: ${tasks.length} tasks, runs ${args.runs}, max attempts ${args.maxAttempts}, ` +
-      `target ${args.target}, max cost $${args.maxCost}, model ${model}, ` +
-      `${args.dryRun ? "dry run" : "live API"}`
+      `target ${args.target}, max cost $${args.maxCost}, max calls ${callCap}, ` +
+      `delay ${args.delayMs}ms, model ${model}, ` +
+      `${args.dryRun ? "dry run" : "live API"}` +
+      (resumedFrom ? `, resuming ${resumedFrom}` : "")
   );
 
   const results = await runSuite({
@@ -63,9 +94,13 @@ async function main() {
     maxAttempts: args.maxAttempts,
     targetScore: args.target,
     maxCostUsd: args.maxCost,
+    maxCalls: args.maxCalls,
+    delayMs: args.delayMs,
     dryRun: args.dryRun,
     model,
     client: createRoleClient({ dryRun: args.dryRun }),
+    prior,
+    resumedFrom,
     logger: (line) => console.log(line),
   });
 
