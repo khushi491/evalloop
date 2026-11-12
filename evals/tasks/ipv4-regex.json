@@ -1,0 +1,42 @@
+{
+  "id": "ipv4-regex",
+  "title": "IPv4 pattern",
+  "split": "train",
+  "category": "code-regex",
+  "prompt": "Write one JavaScript regular expression and nothing else that matches an IPv4 address and nothing else.\n\nIt must accept 0.0.0.0, 192.168.0.1, and 255.255.255.255. It must reject 256.1.1.1, 1.2.3, 1.2.3.4.5, and abc. Use anchors. Do not call eval. Keep the answer under 60 words.",
+  "constraints": [
+    "One anchored regular expression",
+    "Accepts dotted IPv4 addresses and rejects malformed ones",
+    "Under 60 words and does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 60
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "regex_spec",
+      "mustMatch": [
+        "0.0.0.0",
+        "192.168.0.1",
+        "255.255.255.255"
+      ],
+      "mustNotMatch": [
+        "256.1.1.1",
+        "1.2.3",
+        "1.2.3.4.5",
+        "abc"
+      ]
+    }
+  ]
+}

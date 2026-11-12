@@ -8,6 +8,7 @@ import {
 import {
   buildEvaluatorMessages,
   buildPatcherMessages,
+  buildReviserMessages,
   buildRunnerMessages,
 } from "../prompts";
 import type { EvaluatorOutput, Policy } from "../schemas";
@@ -24,17 +25,24 @@ export interface RoleResult {
   attempts?: number;
 }
 
+export interface RoleCallOptions {
+  /** Integer seed forwarded to the provider. Omitted when unset. */
+  seed?: number;
+}
+
 export interface RoleClient {
   runner(
     attemptIndex: number,
     taskText: string,
-    policy: Policy
+    policy: Policy,
+    options?: RoleCallOptions
   ): Promise<RoleResult & { content: string }>;
   evaluator(
     attemptIndex: number,
     taskText: string,
     outputText: string,
-    policy: Policy
+    policy: Policy,
+    options?: RoleCallOptions
   ): Promise<RoleResult & { data: unknown }>;
   patcher(
     attemptIndex: number,
@@ -42,8 +50,18 @@ export interface RoleClient {
     outputText: string,
     evaluation: EvaluatorOutput,
     policy: Policy,
-    patchContext?: PatchContext
+    patchContext?: PatchContext,
+    options?: RoleCallOptions
   ): Promise<RoleResult & { data: unknown }>;
+  /** Optional. Self-Refine falls back to the runner when this is absent. */
+  reviser?(
+    attemptIndex: number,
+    taskText: string,
+    previousOutput: string,
+    critique: string,
+    policy: Policy,
+    options?: RoleCallOptions
+  ): Promise<RoleResult & { content: string }>;
 }
 
 function simulationClient(): RoleClient {
@@ -69,25 +87,33 @@ function simulationClient(): RoleClient {
         attempts: 1,
       };
     },
+    async reviser(attemptIndex, taskText, _previous, _critique, policy) {
+      return {
+        content: await simulateRunner(attemptIndex, taskText, policy),
+        usage: emptyUsage(),
+        attempts: 1,
+      };
+    },
   };
 }
 
 function liveClient(): RoleClient {
   return {
-    async runner(_attemptIndex, taskText, policy) {
+    async runner(_attemptIndex, taskText, policy, options) {
       const response = await chatCompletion(buildRunnerMessages(taskText, policy), {
         temperature: RUNNER_TEMPERATURE,
+        seed: options?.seed,
       });
       return { content: response.content, usage: response.usage, attempts: 1 };
     },
-    async evaluator(_attemptIndex, taskText, outputText, policy) {
+    async evaluator(_attemptIndex, taskText, outputText, policy, options) {
       const response = await chatCompletionJSONDetailed(
         buildEvaluatorMessages(taskText, outputText, policy),
-        { temperature: EVALUATOR_TEMPERATURE }
+        { temperature: EVALUATOR_TEMPERATURE, seed: options?.seed }
       );
       return { data: response.data, usage: response.usage, attempts: response.attempts };
     },
-    async patcher(_attemptIndex, taskText, outputText, evaluation, policy, patchContext) {
+    async patcher(_attemptIndex, taskText, outputText, evaluation, policy, patchContext, options) {
       const response = await chatCompletionJSONDetailed(
         buildPatcherMessages(
           taskText,
@@ -96,9 +122,16 @@ function liveClient(): RoleClient {
           policy,
           patchContext?.hardCheckFailures
         ),
-        { temperature: PATCHER_TEMPERATURE }
+        { temperature: PATCHER_TEMPERATURE, seed: options?.seed }
       );
       return { data: response.data, usage: response.usage, attempts: response.attempts };
+    },
+    async reviser(_attemptIndex, taskText, previousOutput, critique, policy, options) {
+      const response = await chatCompletion(
+        buildReviserMessages(taskText, previousOutput, critique, policy),
+        { temperature: RUNNER_TEMPERATURE, seed: options?.seed }
+      );
+      return { content: response.content, usage: response.usage, attempts: 1 };
     },
   };
 }

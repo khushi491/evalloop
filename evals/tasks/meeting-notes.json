@@ -2,6 +2,7 @@
   "id": "meeting-notes",
   "title": "Weekly planning notes",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write notes for a 30-minute planning meeting between Priya (engineering), Luis (design), and Nora (support) about slipping the mobile release by one week.\n\nRequirements:\n- At most 180 words.\n- Use these exact markdown headings: ## Attendees, ## Decisions, ## Action items.\n- Name an owner for at least one action item.\n- Do not use placeholder text such as \"lorem ipsum\" or \"TBD TBD\".",
   "constraints": [
     "At most 180 words",

@@ -82,8 +82,9 @@ USE_SIMULATION=true
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.5-flash` |
 | Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| Ollama | `http://localhost:11434/v1` | the local model name |
 
-Put the provider key in `OPENAI_API_KEY` (an OpenAI key, a Gemini key, or a Groq key). Gemini's OpenAI-compatible API is documented at [ai.google.dev/gemini-api/docs/openai](https://ai.google.dev/gemini-api/docs/openai). Groq's is documented at [console.groq.com/docs/openai](https://console.groq.com/docs/openai); `llama-3.3-70b-versatile` is one current chat model, and the [model list](https://console.groq.com/docs/models) is the source for others. The client strips a trailing slash from the base URL before it calls `/chat/completions`.
+Put the provider key in `OPENAI_API_KEY` (an OpenAI key, a Gemini key, or a Groq key). Ollama does not check the key; use any non-placeholder value such as `ollama`. Gemini's OpenAI-compatible API is documented at [ai.google.dev/gemini-api/docs/openai](https://ai.google.dev/gemini-api/docs/openai). Groq's is documented at [console.groq.com/docs/openai](https://console.groq.com/docs/openai); `llama-3.3-70b-versatile` is one current chat model, and the [model list](https://console.groq.com/docs/models) is the source for others. The client strips a trailing slash from the base URL before it calls `/chat/completions`. JSON replies are parsed from the text. `response_format` is sent only when `OPENAI_JSON_MODE=response_format`, and a provider that rejects that field is retried once without it.
 
 ### Initialize Database
 
@@ -114,7 +115,7 @@ pnpm build
 
 The harness measures the same loop the app runs (`runImprovementLoop` in `src/lib/improvement-loop.ts`). The runner drafts, the evaluator scores, and the patcher updates the policy. In the app, that loop stops when the judge score reaches the target. In the harness, it stops only when the blended total reaches the target and every hard check passes, or when the attempt budget runs out.
 
-Fixtures live in `evals/tasks/`. Seven are training tasks. Three are held out: `security-advisory`, `invoice-json`, and `status-update`. Each file has a prompt, the constraints in plain language, and hard checks that run in process: word limits, required headings and keywords, forbidden text, and JSON shape. Hard checks are recorded beside the judge. They are not added to the judge prompt. When any of them fail, those failures are included in the patcher input next to the judge feedback. Held-out prompts are still never sent to the patcher.
+Fixtures live in `evals/tasks/`. Twenty are training tasks. Ten are held out, including `security-advisory`, `invoice-json`, and `status-update`. The categories are structured output, constrained writing, summarization with required facts, and small regex or replacement rules. Each file has a prompt, the constraints in plain language, and hard checks that run in process: word limits, required headings and keywords, forbidden text, JSON shape, and, for the regex tasks, accept and reject samples. Hard checks are recorded beside the judge. They are not added to the judge prompt. The default patcher feedback sends hard-check failures next to the judge feedback. Held-out prompts are still never sent to the patcher. `docs/EXPERIMENTS.md` is the reproduction guide for the method comparison.
 
 ### What a run records
 
@@ -126,14 +127,11 @@ Held-out prompts are never sent to the patcher. After training, the final policy
 
 Cost uses the per-model price table in `src/lib/eval/cost.ts`. `gpt-4o-mini` is input $0.15 / 1M tokens, cached input $0.075 / 1M tokens, output $0.60 / 1M tokens (checked 2026-11-11 against the OpenAI model page). Cached tokens use the cached rate only when the API reports them and the model has a price. Any other model, including Gemini and Groq, is reported as **free tier / unknown** and the estimated cost is $0. Those runs do not inherit the gpt-4o-mini rates. `--max-cost` defaults to 3 and applies to estimated spend in the current process. The suite stops before the next model call once that spend reaches the cap. The call already in flight is recorded, including when it crosses the cap.
 
-Temperature is fixed at the product values: runner 0.4, evaluator 0.1, patcher 0.2. The CLI does not have a temperature flag.
+Temperature is fixed at the product values: runner 0.4, evaluator 0.1, patcher 0.2. The reviser uses the runner temperature. The CLI does not have a temperature flag. `--seed` records an integer seed and sends it on each request. The results file also records the provider label, base URL, method, stopping rule, and patcher feedback.
 
 ### Planned model calls
 
-Defaults are 7 training tasks, 3 held-out tasks, `--runs 1`, and `--max-attempts 3`. When no training attempt reaches the target early and no JSON reply needs a second parse, that is 68 model calls:
-
-- training: `runs × tasks × (3 × maxAttempts − 1)` = 56
-- held-out: `runs × tasks × 4` = 12
+The default method is the policy loop. With 20 training tasks, 10 held-out tasks, `--runs 1`, and `--max-attempts 3`, a run that never stops early and never retries a JSON parse makes 200 model calls: `20 × 8 + 10 × 4`. Training is `runs × tasks × (3 × maxAttempts − 1)`. Held-out transfer is two single-attempt loops per task. `pnpm sweep -- --estimate` prints the upper bound for the other methods.
 
 An earlier stop removes the calls that would have followed it. A high judge score does not stop the loop while a hard check is still failing, so a run can use the full attempt budget even when the judge already cleared 90. The patcher does not run after the attempt that ends a loop. A JSON parse retry adds one extra call for that reply. A 429 or 503 response is retried inside that call, with `Retry-After` when the header is a delay in seconds, and is not counted as an extra suite call.
 
@@ -162,7 +160,7 @@ pnpm eval -- --resume evals/results/<timestamp>.json --max-calls 20 --delay-ms 1
 
 `OPENAI_API_KEY` is read from the environment or from `.env`. Do not put the key on the command line. A variable set in the shell wins over `.env`.
 
-Other flags: `--tasks id,id`, `--target 90`, `--out evals/results`, `--dry-run`, `--help`.
+Other flags: `--tasks id,id`, `--target 90`, `--out evals/results`, `--dry-run`, `--method`, `--stopping`, `--feedback`, `--seed`, `--help`. `--method` is `single-shot`, `best-of-n`, `self-refine`, or `policy`. Every method shares the policy loop's per-task call budget. `pnpm sweep` runs a method by condition by seed matrix and can resume. See `docs/EXPERIMENTS.md`.
 
 Dry run uses the built-in simulation client and does not need an API key:
 

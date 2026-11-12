@@ -1,0 +1,46 @@
+{
+  "id": "lecture-summary",
+  "title": "Lecture recap",
+  "split": "heldout",
+  "category": "summarization",
+  "prompt": "Summarize this lecture note in at most 90 words.\n\nSource: The linear algebra lecture on 12 March covered eigenvalues. The reading is chapter 4. There is a quiz on Friday.\n\nUse these exact markdown headings: ## Topic, ## Reading, ## Quiz. Mention eigenvalues, chapter 4, and Friday. Do not add office hours that the note does not mention.",
+  "constraints": [
+    "At most 90 words",
+    "Headings: Topic, Reading, Quiz",
+    "Keeps eigenvalues, chapter 4, and Friday",
+    "Does not invent office hours"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 90
+    },
+    {
+      "id": "sections",
+      "type": "required_headings",
+      "headings": [
+        "Topic",
+        "Reading",
+        "Quiz"
+      ]
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "eigenvalues",
+        "chapter 4",
+        "Friday",
+        "12 March"
+      ]
+    },
+    {
+      "id": "no-extra",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "office hours"
+      ]
+    }
+  ]
+}

@@ -122,6 +122,54 @@ export class BudgetExceededError extends Error {
   }
 }
 
+export interface InvocationLedger {
+  maxCostUsd: number;
+  maxCalls: number;
+  invocationSpentUsd: number;
+  invocationCalls: number;
+}
+
+/** Add one role call to the invocation ledger and return its estimated USD cost. */
+export function chargeLedger(
+  ledger: InvocationLedger,
+  usage: CostUsage,
+  modelCalls: number,
+  price: Pick<
+    TokenPrice,
+    "inputMicroUsdPerMillion" | "cachedInputMicroUsdPerMillion" | "outputMicroUsdPerMillion"
+  >
+): number {
+  const costUsd = estimateCostUsd(usage, price);
+  ledger.invocationSpentUsd = roundUsd(ledger.invocationSpentUsd + costUsd);
+  ledger.invocationCalls += modelCalls;
+  return costUsd;
+}
+
+export function assertInvocationBudget(ledger: InvocationLedger): void {
+  if (ledger.invocationSpentUsd >= ledger.maxCostUsd) {
+    throw new BudgetExceededError(ledger.invocationSpentUsd, ledger.maxCostUsd);
+  }
+  if (ledger.invocationCalls >= ledger.maxCalls) {
+    throw new CallBudgetExceededError(ledger.invocationCalls, ledger.maxCalls);
+  }
+}
+
+/**
+ * The per-task call cap was reached. The suite moves on to the next task.
+ * This is not a global abort.
+ */
+export class TaskCallBudgetError extends Error {
+  readonly calls: number;
+  readonly maxCalls: number;
+
+  constructor(calls: number, maxCalls: number) {
+    super(`This task reached its call budget of ${maxCalls}.`);
+    this.name = "TaskCallBudgetError";
+    this.calls = calls;
+    this.maxCalls = maxCalls;
+  }
+}
+
 export class CallBudgetExceededError extends Error {
   readonly calls: number;
   readonly maxCalls: number;

@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "eval": "tsx scripts/eval.ts",
-    "eval:report": "tsx scripts/eval-report.ts"
+    "eval:report": "tsx scripts/eval-report.ts",
+    "sweep": "tsx scripts/sweep.ts",
+    "analyze": "tsx scripts/analyze.ts"
   },
   "keywords": [],
   "author": "",

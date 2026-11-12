@@ -2,6 +2,7 @@
   "id": "onboarding-email",
   "title": "Workspace welcome email",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write a welcome email to a new teammate who just joined a project workspace.\n\nRequirements:\n- 40 to 110 words.\n- Greet them and include the word welcome.\n- Tell them the next step is to open the project checklist.\n- Do not ask for a password, and do not include a bit.ly link.",
   "constraints": [
     "40 to 110 words",

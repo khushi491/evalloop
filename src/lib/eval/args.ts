@@ -1,3 +1,13 @@
+import {
+  EVAL_METHODS,
+  FEEDBACK_MODES,
+  STOPPING_RULES,
+  parseChoice,
+  type EvalMethod,
+  type PatcherFeedback,
+  type StoppingRule,
+} from "./conditions";
+
 export interface EvalArgs {
   tasks: string[] | null;
   runs: number;
@@ -11,6 +21,11 @@ export interface EvalArgs {
   outDir: string;
   resume: string | null;
   help: boolean;
+  method: EvalMethod;
+  stopping: StoppingRule;
+  feedback: PatcherFeedback;
+  /** Null when the caller does not set a seed. */
+  seed: number | null;
 }
 
 export interface ReportArgs {
@@ -35,13 +50,28 @@ Options:
   --delay-ms N         Wait N milliseconds between model calls in this run (default: 0).
   --resume FILE        Skip task attempts already completed in a results JSON file and continue the suite.
   --out DIR            Directory for the results JSON (default: evals/results).
+  --method NAME        single-shot, best-of-n, self-refine, or policy (default: policy).
+  --stopping RULE      judge-only or judge-and-hard (default: judge-and-hard).
+  --feedback MODE      critique-only, hard-checks-only, or both (default: both).
+  --seed N             Integer seed recorded on the run and sent to the provider. Default: unset.
   --help               Show this help.
 
+Every method is capped at the same per-task call budget as a full policy loop
+(3 calls per attempt, minus the patcher after the last attempt).
+single-shot uses one draft. best-of-n draws as many independent samples as that
+budget allows and keeps the highest judge score. self-refine revises the answer
+and does not keep a policy. policy is the EvalLoop loop.
+Held-out transfer (initial policy, then the frozen learned policy, no further
+patching) runs only for policy. The other methods score held-out tasks once.
 Temperature is fixed at the product loop values (runner 0.4, evaluator 0.1, patcher 0.2).
-The command does not start Next.js or a database. Set OPENAI_API_KEY for a live run.
+The reviser uses the runner temperature. The command does not start Next.js or a database.
+Set OPENAI_API_KEY for a live run. A local server can use any non-placeholder value, for example ollama.
 OPENAI_BASE_URL and OPENAI_MODEL select any OpenAI-compatible provider
 (defaults: https://api.openai.com/v1, gpt-4o-mini).
+JSON replies are parsed from the text. response_format is not sent unless OPENAI_JSON_MODE=response_format,
+and a provider that rejects that field is retried once without it.
 Gemini: OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ OPENAI_MODEL=gemini-3.5-flash
+Ollama: OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_MODEL=<local-model> OPENAI_API_KEY=ollama
 Groq: OPENAI_BASE_URL=https://api.groq.com/openai/v1 OPENAI_MODEL=llama-3.3-70b-versatile
 USE_SIMULATION is ignored here; pass --dry-run to simulate.
 --max-calls and --max-cost count only calls made in this process. --resume does not charge earlier calls against either cap.
@@ -104,6 +134,10 @@ export function parseEvalArgs(argv: readonly string[]): EvalArgs {
     outDir: "evals/results",
     resume: null,
     help: false,
+    method: "policy",
+    stopping: "judge-and-hard",
+    feedback: "both",
+    seed: null,
   };
   const rest = [...argv];
   while (rest.length > 0) {
@@ -149,6 +183,18 @@ export function parseEvalArgs(argv: readonly string[]): EvalArgs {
         break;
       case "--out":
         args.outDir = requireValue(token, rest);
+        break;
+      case "--method":
+        args.method = parseChoice("--method", requireValue(token, rest), EVAL_METHODS);
+        break;
+      case "--stopping":
+        args.stopping = parseChoice("--stopping", requireValue(token, rest), STOPPING_RULES);
+        break;
+      case "--feedback":
+        args.feedback = parseChoice("--feedback", requireValue(token, rest), FEEDBACK_MODES);
+        break;
+      case "--seed":
+        args.seed = nonNegativeInt("--seed", requireValue(token, rest));
         break;
       default:
         throw new Error(`Unknown argument: ${token}`);

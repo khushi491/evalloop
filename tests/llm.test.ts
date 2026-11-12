@@ -53,6 +53,42 @@ describe("chatCompletion", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("omits response_format unless JSON mode is requested, and retries without it", async () => {
+    process.env.OPENAI_API_KEY = "test-not-a-real-key";
+    process.env.OPENAI_BASE_URL = "http://localhost:11434/v1";
+    delete process.env.OPENAI_JSON_MODE;
+    const bodies: unknown[] = [];
+    const fetchMock = mockFetch(async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return jsonResponse({
+        choices: [{ message: { content: "{\"ok\":true}" } }],
+      });
+    });
+    await chatCompletion([{ role: "user", content: "Hello" }], { seed: 7, jsonObject: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bodies[0]).toMatchObject({ seed: 7, model: "gpt-4o-mini" });
+    expect(bodies[0]).not.toHaveProperty("response_format");
+
+    process.env.OPENAI_JSON_MODE = "response_format";
+    let call = 0;
+    mockFetch(async (_url, init) => {
+      call += 1;
+      const body = JSON.parse(String(init?.body)) as { response_format?: unknown };
+      if (call === 1) {
+        expect(body.response_format).toEqual({ type: "json_object" });
+        return jsonResponse("response_format is not supported", 400);
+      }
+      expect(body).not.toHaveProperty("response_format");
+      return jsonResponse({
+        choices: [{ message: { content: "done" } }],
+      });
+    });
+    await expect(
+      chatCompletion([{ role: "user", content: "Hello" }], { jsonObject: true })
+    ).resolves.toMatchObject({ content: "done" });
+    delete process.env.OPENAI_JSON_MODE;
+  });
+
   it("posts to the configured base URL and strips a trailing slash", async () => {
     process.env.OPENAI_API_KEY = "test-not-a-real-key";
     process.env.OPENAI_BASE_URL = "https://example.test/v1/";

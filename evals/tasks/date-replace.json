@@ -1,0 +1,49 @@
+{
+  "id": "date-replace",
+  "title": "Slash date separator rule",
+  "split": "heldout",
+  "category": "code-regex",
+  "prompt": "Return one JSON object and nothing else with the keys pattern, replacement, and flags. The rule replaces every slash with a hyphen.\n\nIt must turn \"2026/04/01\" into \"2026-04-01\", \"a/b\" into \"a-b\", and leave \"no-slash\" unchanged. Do not call eval.",
+  "constraints": [
+    "JSON with pattern, replacement, and flags",
+    "Replaces slashes with hyphens",
+    "Does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "pattern",
+        "replacement",
+        "flags"
+      ]
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "replace_spec",
+      "cases": [
+        {
+          "input": "2026/04/01",
+          "output": "2026-04-01"
+        },
+        {
+          "input": "a/b",
+          "output": "a-b"
+        },
+        {
+          "input": "no-slash",
+          "output": "no-slash"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "email-regex",
+  "title": "Simple email pattern",
+  "split": "train",
+  "category": "code-regex",
+  "prompt": "Write one JavaScript regular expression and nothing else. It should accept simple email addresses and reject strings that are not emails.\n\nPut the pattern in a /pattern/flags literal or on a single line. Use anchors so a match covers the whole string. Do not call eval. Keep the answer under 40 words.",
+  "constraints": [
+    "One regular expression",
+    "Accepts simple emails and rejects incomplete ones",
+    "Under 40 words and does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 40
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "regex_spec",
+      "mustMatch": [
+        "a@b.co",
+        "user.name@example.com"
+      ],
+      "mustNotMatch": [
+        "a@",
+        "@b.co",
+        "plain text",
+        "a@b"
+      ]
+    }
+  ]
+}

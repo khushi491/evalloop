@@ -2,6 +2,7 @@
   "id": "invoice-json",
   "title": "Consulting invoice JSON",
   "split": "heldout",
+  "category": "structured-output",
   "prompt": "Create an invoice as one JSON object and nothing else for Northwind Studio, invoice INV-204, billed in USD. Two line items: design review for 400 and copy edit for 150. The total is 550.\n\nThe object must include the keys invoiceId, currency, total, and lineItems. currency must be a three-letter uppercase code. Do not include an SSN, a CVV, a card number, or a 13 to 19 digit number.",
   "constraints": [
     "A single JSON object",

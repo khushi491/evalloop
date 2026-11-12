@@ -2,6 +2,7 @@
   "id": "product-faq",
   "title": "Shipping and returns FAQ",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write a short FAQ for a ceramics shop.\n\nRequirements:\n- At most 120 words.\n- Use these exact markdown headings: ## Returns, ## Shipping.\n- Say that returns are accepted within 30 days.\n- Do not mention the competitors AcmeRival or CompetitorCo.",
   "constraints": [
     "At most 120 words",

@@ -51,5 +51,8 @@ jobs:
           OPENAI_API_KEY: ""
         run: pnpm eval -- --dry-run --out "${{ runner.temp }}/evalloop-eval"
 
+      - name: Sweep estimate
+        run: pnpm exec tsx scripts/sweep.ts --estimate --plan minimal --seeds 1
+
       - name: Build
         run: pnpm build

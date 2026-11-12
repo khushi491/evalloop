@@ -1,0 +1,42 @@
+{
+  "id": "semver-regex",
+  "title": "Semantic version pattern",
+  "split": "train",
+  "category": "code-regex",
+  "prompt": "Write one JavaScript regular expression and nothing else for a three-part numeric version such as 2.4.1.\n\nAccept 0.1.0, 2.4.1, and 10.20.30. Reject 1.2, v1.2.3, 1.2.3.4, and 1.2.3-beta. Use anchors so extra characters fail. Do not call eval. Keep the answer under 40 words.",
+  "constraints": [
+    "One anchored regular expression",
+    "Accepts three numeric parts and rejects other shapes",
+    "Under 40 words and does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 40
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "regex_spec",
+      "mustMatch": [
+        "0.1.0",
+        "2.4.1",
+        "10.20.30"
+      ],
+      "mustNotMatch": [
+        "1.2",
+        "v1.2.3",
+        "1.2.3.4",
+        "1.2.3-beta"
+      ]
+    }
+  ]
+}
