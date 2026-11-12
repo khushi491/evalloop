@@ -1,0 +1,42 @@
+{
+  "id": "contract-summary",
+  "title": "Hosting contract summary",
+  "split": "train",
+  "category": "summarization",
+  "prompt": "Summarize this contract in at most 90 words and at least 35 words.\n\nSource: Harbor Hosting will provide the service for 12 months starting 2026-04-01. The fee is $4800. Either party may end the contract with 30 days notice. The contract does not grant unlimited seats.\n\nThe summary must mention Harbor Hosting, 12 months, $4800, 30 days, and 2026-04-01. Do not write \"unlimited\".",
+  "constraints": [
+    "35 to 90 words",
+    "Keeps the vendor, term, fee, notice, and start date",
+    "Does not claim unlimited seats"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 90
+    },
+    {
+      "id": "word-floor",
+      "type": "min_words",
+      "min": 35
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "Harbor Hosting",
+        "12 months",
+        "$4800",
+        "30 days",
+        "2026-04-01"
+      ]
+    },
+    {
+      "id": "no-unlimited",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "unlimited"
+      ]
+    }
+  ]
+}

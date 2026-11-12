@@ -90,6 +90,17 @@ export function renderResultsMarkdown(results: EvalResults): string {
     `| Max calls | ${maxCallsLabel(results)} |`,
     `| Delay between calls | ${results.config.delayMs ?? 0} ms |`,
     `| Tasks | ${results.config.taskIds.join(", ")} |`,
+    ...(results.config.method
+      ? [
+          `| Method | ${results.config.method} |`,
+          `| Stopping | ${results.config.stopping ?? ""} |`,
+          `| Patcher feedback | ${results.config.feedback ?? ""} |`,
+          `| Seed | ${results.config.seed ?? "none"} |`,
+          `| Provider | ${results.config.provider ?? ""} |`,
+          `| Base URL | ${results.config.baseUrl ?? ""} |`,
+          `| Per-task call budget | ${results.config.perTaskCallBudget ?? ""} |`,
+        ]
+      : []),
     "",
     priceSentence(results),
     "",
@@ -99,7 +110,9 @@ export function renderResultsMarkdown(results: EvalResults): string {
     "",
     "## Training",
     "",
-    "Each training task starts from the initial policy. Before is the first scored attempt. After is the last scored attempt.",
+    results.config.method === "best-of-n"
+      ? "Each training task draws independent samples from the initial policy. Before is the first scored sample. After is the sample with the highest judge score. Ties keep the earlier sample."
+      : "Each training task starts from the initial policy. Before is the first scored attempt. After is the last scored attempt.",
     ""
   );
 

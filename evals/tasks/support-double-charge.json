@@ -2,6 +2,7 @@
   "id": "support-double-charge",
   "title": "Duplicate charge reply",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write a customer-support reply to someone who was charged twice for one order.\n\nRequirements:\n- 40 to 90 words.\n- Apologize once, without admitting fault or saying \"our fault\" or \"we take full responsibility\".\n- Ask for the order ID and the last 4 digits of the card. Do not ask for a full credit card number, a card number, or a social security number.\n- Offer both a refund and account credit as choices.\n- Do not include a 13 to 19 digit card number.",
   "constraints": [
     "40 to 90 words",

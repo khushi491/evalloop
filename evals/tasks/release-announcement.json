@@ -1,0 +1,44 @@
+{
+  "id": "release-announcement",
+  "title": "Search release announcement",
+  "split": "train",
+  "category": "constrained-writing",
+  "prompt": "Write a product announcement of at most 120 words for version 2.4 of a notes app. The new behavior is faster search.\n\nUse these exact markdown headings: ## What is new, ## How to update.\nMention 2.4 and search. Do not claim the app is bug-free.",
+  "constraints": [
+    "At most 120 words",
+    "Headings: What is new, How to update",
+    "Mentions 2.4 and search",
+    "Does not claim the app is bug-free"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 120
+    },
+    {
+      "id": "sections",
+      "type": "required_headings",
+      "headings": [
+        "What is new",
+        "How to update"
+      ]
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "2.4",
+        "search"
+      ]
+    },
+    {
+      "id": "no-overclaim",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "bug-free",
+        "bug free"
+      ]
+    }
+  ]
+}

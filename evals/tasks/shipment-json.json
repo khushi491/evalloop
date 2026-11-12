@@ -1,0 +1,42 @@
+{
+  "id": "shipment-json",
+  "title": "Warehouse shipment JSON",
+  "split": "train",
+  "category": "structured-output",
+  "prompt": "Return one JSON object and nothing else for shipment SHP-100. The carrier is Northwind. The status is in_transit.\n\nThe object must include the keys shipmentId, carrier, and status. status must be one of booked, in_transit, or delivered. Do not include a phone number or a 10-digit number.",
+  "constraints": [
+    "A single JSON object",
+    "Keys shipmentId, carrier, and status",
+    "status is booked, in_transit, or delivered",
+    "No phone number"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "shipmentId",
+        "carrier",
+        "status"
+      ]
+    },
+    {
+      "id": "status-value",
+      "type": "required_regex",
+      "pattern": "\"status\"\\s*:\\s*\"(booked|in_transit|delivered)\""
+    },
+    {
+      "id": "shipment-id",
+      "type": "required_keywords",
+      "keywords": [
+        "SHP-100",
+        "Northwind"
+      ]
+    },
+    {
+      "id": "no-phone",
+      "type": "forbidden_regex",
+      "pattern": "\\b\\d{10}\\b"
+    }
+  ]
+}

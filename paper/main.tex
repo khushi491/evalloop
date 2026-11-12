@@ -1,0 +1,89 @@
+\documentclass{article}
+% Placeholder style. The SEA workshop page lists Dec 7, 2026 as the Call for
+% Papers date and says formatting instructions will be posted with that call.
+% This file uses the public ICLR conference style with the year strings set to 2027.
+% Swap in the official SEA template when it is posted. Do not treat this PDF as the submission.
+\usepackage{iclr2027_conference}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{EvalLoop short paper (working title)}
+\author{Khushi}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Research question: policy rewritten from LLM-judge feedback --- real improvement, or pleasing the judge? Do code hard checks fix that?
+  \item Evidence map: \texttt{paper/EVIDENCE.md}
+\end{itemize}
+\end{abstract}
+
+\section{Introduction}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Loop: run task, judge plus code checks, patch policy, rerun
+  \item Question: judge-only updates vs judge + hard checks
+  \item Not a results section. No numbers here.
+\end{itemize}
+
+\section{Related Work}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Verbal self-reflection, memory buffer: \citep{shinn2023reflexion}
+  \item Critique then rewrite the answer, no persistent policy: \citep{madaan2023selfrefine}
+  \item Principles, model critique: \citep{bai2022constitutional}
+  \item Prompt as the optimized object: \citep{yang2023opro}
+  \item Compile a pipeline against a metric: \citep{khattab2023dspy}
+  \item Text feedback as a gradient: \citep{yuksekgonul2024textgrad}
+  \item LLM-as-judge biases: \citep{zheng2023judging}
+  \item Proxy reward overoptimization, best-of-$n$: \citep{gao2022scaling}
+  \item Bib notes say what each citation is for. Unverified items are not in the bib.
+\end{itemize}
+
+\section{Method}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Roles: runner, judge, patcher. Self-refine adds a reviser and does not store a policy.
+  \item Hard checks: in-process, not pasted into the judge prompt
+  \item Patcher feedback switch: critique-only / hard-checks-only / both
+  \item Stopping switch: judge-only / judge + hard checks
+  \item Held-out: frozen learned policy, no further patching (policy method only)
+  \item Pointer: \texttt{src/lib/improvement-loop.ts}, \texttt{src/lib/eval/suite.ts}
+\end{itemize}
+
+\section{Experimental Setup}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Tasks: 30 fixtures, 20 train / 10 held out, four categories. Ids in \texttt{evals/tasks/}.
+  \item Methods, same per-task call budget: single-shot; best-of-$n$ picked by the judge; Self-Refine-style revision; EvalLoop policy loop
+  \item Seeds recorded. Temperatures fixed (runner 0.4, evaluator 0.1, patcher 0.2).
+  \item Providers: Gemini free tier and a local OpenAI-compatible server. Config via env. See \texttt{docs/EXPERIMENTS.md}.
+  \item No live numbers in this draft.
+\end{itemize}
+
+\section{Results}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Tables and figures are produced by \texttt{pnpm analyze}. Do not paste simulated scores here.
+  \item Planned files, after a live sweep: \texttt{paper/figures/hard-check-by-method}, \texttt{judge-by-method}, \texttt{gap-by-iteration}, \texttt{heldout-transfer}, \texttt{cost-per-point}
+  \item Gap definition: judge score minus hard-check pass rate times 100
+  \item Mock figures must stay labeled mock. They are not results.
+\end{itemize}
+
+\section{Limitations}
+\begin{itemize}
+  \item \todo{Khushi writes}
+  \item Free-compute constraint: small model, small task set, few seeds
+  \item Gemini planning assumption is about 20 calls/day. Not a measured quota. See \texttt{docs/EXPERIMENTS.md}.
+  \item One judge model family. Judge and generator can share a provider.
+  \item Hard checks are narrow (words, keywords, JSON, regex samples). They can miss failures the judge names, and the reverse.
+  \item Best-of-$n$ selection uses the same judge the study is worried about.
+  \item No human rating in this design.
+\end{itemize}
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\end{document}

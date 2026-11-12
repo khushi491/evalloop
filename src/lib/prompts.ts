@@ -83,6 +83,42 @@ export interface PromptHardCheckFailure {
   message: string;
 }
 
+/**
+ * Self-Refine revises the previous answer. It does not edit the policy.
+ * The critique string is already filtered by the feedback mode.
+ */
+export function buildReviserMessages(
+  taskText: string,
+  previousOutput: string,
+  critique: string,
+  policy: Policy
+) {
+  return [
+    {
+      role: "system" as const,
+      content:
+        "You revise an answer. Follow the task and the current policy. Return only the revised answer, with no analysis.",
+    },
+    {
+      role: "user" as const,
+      content: `## Task
+${taskText}
+
+## Current Policy
+${JSON.stringify(policy, null, 2)}
+
+## Previous answer
+${previousOutput}
+
+## Critique
+${critique}
+
+## Instructions
+Write a revised answer that addresses the critique. Do not mention the critique. Output ONLY the revised answer.`,
+    },
+  ];
+}
+
 export function buildPatcherMessages(
   taskText: string,
   outputText: string,

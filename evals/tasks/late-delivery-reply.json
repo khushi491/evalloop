@@ -1,0 +1,47 @@
+{
+  "id": "late-delivery-reply",
+  "title": "Late delivery reply",
+  "split": "heldout",
+  "category": "constrained-writing",
+  "prompt": "Write a support reply of 35 to 85 words. The order will arrive tomorrow. Say the delivery is late. Do not admit fault and do not guarantee a refund.\n\nRequirements:\n- Use the words late, order, and tomorrow.\n- Do not write \"our fault\" or \"refund guaranteed\".\n- Do not include a card number.",
+  "constraints": [
+    "35 to 85 words",
+    "Mentions late, order, and tomorrow",
+    "Does not admit fault or guarantee a refund",
+    "No card number"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 85
+    },
+    {
+      "id": "word-floor",
+      "type": "min_words",
+      "min": 35
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "late",
+        "order",
+        "tomorrow"
+      ]
+    },
+    {
+      "id": "no-overclaim",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "our fault",
+        "refund guaranteed"
+      ]
+    },
+    {
+      "id": "no-card",
+      "type": "forbidden_regex",
+      "pattern": "\\b\\d{13,19}\\b"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "calendar-event-json",
+  "title": "Design review event JSON",
+  "split": "train",
+  "category": "structured-output",
+  "prompt": "Return one JSON object and nothing else for a calendar event titled Design review. It starts at 2026-05-04T15:00:00Z and ends at 2026-05-04T15:30:00Z.\n\nInclude the keys title, start, and end. start and end must be UTC timestamps with a trailing Z. Do not include a location field named secret.",
+  "constraints": [
+    "A single JSON object",
+    "Keys title, start, and end",
+    "Timestamps end in Z",
+    "No secret location"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "title",
+        "start",
+        "end"
+      ]
+    },
+    {
+      "id": "start-stamp",
+      "type": "required_regex",
+      "pattern": "\"start\"\\s*:\\s*\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z\""
+    },
+    {
+      "id": "title-text",
+      "type": "required_keywords",
+      "keywords": [
+        "Design review"
+      ]
+    },
+    {
+      "id": "no-secret",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "secret"
+      ]
+    }
+  ]
+}

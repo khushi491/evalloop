@@ -11,6 +11,7 @@ import {
   modelCallsForAttempts,
 } from "../src/lib/eval/metrics";
 import { formatUsd, renderResultsMarkdown } from "../src/lib/eval/report";
+import { loadTasks } from "../src/lib/eval/tasks";
 import { DEFAULT_POLICY, type Policy } from "../src/lib/schemas";
 import type { AttemptRecord, EvalResults, JudgeRecord } from "../src/lib/eval/types";
 import { repoRoot } from "./test-env";
@@ -363,7 +364,7 @@ describe("aggregation and the results report", () => {
     expect(markdown).not.toContain("input $0.15 per 1M tokens");
   });
 
-  it("plans 68 model calls for the default full suite", () => {
+  it("plans the policy-loop call upper bound from the task counts", () => {
     expect(modelCallsForAttempts(1)).toBe(2);
     expect(modelCallsForAttempts(3)).toBe(8);
     expect(
@@ -374,6 +375,19 @@ describe("aggregation and the results report", () => {
         maxAttempts: 3,
       })
     ).toBe(68);
+    const tasks = loadTasks();
+    const training = tasks.filter((task) => task.split === "train").length;
+    const heldOut = tasks.filter((task) => task.split === "heldout").length;
+    expect(training).toBe(20);
+    expect(heldOut).toBe(10);
+    expect(
+      expectedFullSuiteCalls({
+        trainingTasks: training,
+        heldOutTasks: heldOut,
+        runs: 1,
+        maxAttempts: 3,
+      })
+    ).toBe(200);
   });
 
   it("keeps the checked-in report as a not-yet-run placeholder", () => {

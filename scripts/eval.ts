@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { EVAL_HELP, parseEvalArgs } from "../src/lib/eval/args";
 import { createRoleClient } from "../src/lib/eval/client";
+import { resolveProvider } from "../src/lib/eval/provider";
 import { assertResultsFile } from "../src/lib/eval/report";
 import { runSuite } from "../src/lib/eval/suite";
 import { loadTasks, selectTasks } from "../src/lib/eval/tasks";
@@ -78,12 +79,15 @@ async function main() {
     resumedFrom = resumePath;
   }
 
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const provider = resolveProvider();
+  const model = provider.model;
   const callCap = args.maxCalls === null ? "none" : String(args.maxCalls);
+  const seedLabel = args.seed === null ? "none" : String(args.seed);
   console.log(
-    `EvalLoop eval: ${tasks.length} tasks, runs ${args.runs}, max attempts ${args.maxAttempts}, ` +
+    `EvalLoop eval: ${tasks.length} tasks, method ${args.method}, stopping ${args.stopping}, ` +
+      `feedback ${args.feedback}, seed ${seedLabel}, runs ${args.runs}, max attempts ${args.maxAttempts}, ` +
       `target ${args.target}, max cost $${args.maxCost}, max calls ${callCap}, ` +
-      `delay ${args.delayMs}ms, model ${model}, ` +
+      `delay ${args.delayMs}ms, provider ${provider.provider}, model ${model}, base ${provider.baseUrl}, ` +
       `${args.dryRun ? "dry run" : "live API"}` +
       (resumedFrom ? `, resuming ${resumedFrom}` : "")
   );
@@ -98,6 +102,12 @@ async function main() {
     delayMs: args.delayMs,
     dryRun: args.dryRun,
     model,
+    method: args.method,
+    stopping: args.stopping,
+    feedback: args.feedback,
+    seed: args.seed,
+    baseUrl: provider.baseUrl,
+    provider: provider.provider,
     client: createRoleClient({ dryRun: args.dryRun }),
     prior,
     resumedFrom,

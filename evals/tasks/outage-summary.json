@@ -1,0 +1,42 @@
+{
+  "id": "outage-summary",
+  "title": "Billing outage summary",
+  "split": "train",
+  "category": "summarization",
+  "prompt": "Summarize this incident in 40 to 80 words. Keep every fact below. Do not invent a different cause.\n\nSource: The billing API failed at 09:40 UTC. It was down for 27 minutes. The cause was an expired certificate. About 1200 users saw failed checkouts. The service recovered after the certificate was renewed.\n\nThe summary must mention billing, 09:40, 27 minutes, certificate, and 1200. Do not write \"unknown cause\".",
+  "constraints": [
+    "40 to 80 words",
+    "Keeps billing, 09:40, 27 minutes, certificate, and 1200",
+    "Does not say unknown cause"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 80
+    },
+    {
+      "id": "word-floor",
+      "type": "min_words",
+      "min": 40
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "billing",
+        "09:40",
+        "27 minutes",
+        "certificate",
+        "1200"
+      ]
+    },
+    {
+      "id": "no-unknown",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "unknown cause"
+      ]
+    }
+  ]
+}

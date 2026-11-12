@@ -1,0 +1,42 @@
+{
+  "id": "shipping-delay-reply",
+  "title": "Shipping delay reply",
+  "split": "train",
+  "category": "constrained-writing",
+  "prompt": "Write a customer reply of 30 to 80 words about a delayed package.\n\nRequirements:\n- Say the order is delayed.\n- Give the tracking number TRK-7781.\n- Say the new arrival day is Friday.\n- Do not say the order is cancelled.\n- Do not promise a refund.",
+  "constraints": [
+    "30 to 80 words",
+    "Mentions delayed, TRK-7781, and Friday",
+    "Does not say cancelled or promise a refund"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 80
+    },
+    {
+      "id": "word-floor",
+      "type": "min_words",
+      "min": 30
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "delayed",
+        "TRK-7781",
+        "Friday"
+      ]
+    },
+    {
+      "id": "no-cancel",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "cancelled",
+        "canceled",
+        "refund"
+      ]
+    }
+  ]
+}
