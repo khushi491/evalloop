@@ -376,14 +376,43 @@ describe("aggregation and the results report", () => {
     ).toBe(68);
   });
 
-  it("keeps the checked-in report as a not-yet-run placeholder", () => {
+  it("checks in the measured Gemini free-tier report", () => {
     const readme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
-    const placeholder = readFileSync(path.join(repoRoot, "evals/RESULTS.md"), "utf8");
+    const report = readFileSync(path.join(repoRoot, "evals/RESULTS.md"), "utf8");
+    const results = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, "evals/results/2026-11-14T09-15-50-116Z.json"),
+        "utf8",
+      ),
+    ) as {
+      generatedAt: string;
+      config: { model: string; maxCalls: number };
+      totals: { modelCalls: number; estimatedCostUsd: number };
+    };
+
     expect(readme).toMatch(/## Evaluation/);
     expect(readme).toContain("evals/RESULTS.md");
+    expect(readme).toContain("evals/results/2026-11-14T09-15-50-116Z.json");
+    expect(readme).not.toMatch(/has not been run yet/i);
     expect(readme.toLowerCase()).not.toContain("hackathon");
-    expect(placeholder).toMatch(/Not yet run/i);
-    expect(placeholder).not.toMatch(/\d+\.\d+%/);
-    expect(placeholder.toLowerCase()).not.toContain("hackathon");
+
+    expect(report).toContain("Generated: 2026-11-14T09:15:50.116Z");
+    expect(report).toContain("| Model | gemini-3.5-flash |");
+    expect(report).toContain(
+      "| **Average** | | | 86.4% | 90.3 | 88.0 | 100.0% | 98.9 | 99.0 |",
+    );
+    expect(report).toContain(
+      "| **Average** | | 91.7% | 93.3 | 93.0 | 100.0% | 100.0 | 100.0 |",
+    );
+    expect(report).toContain("| Estimated cost | $0.00 |");
+    expect(report).toContain("| Model calls | 41 |");
+    expect(report).not.toMatch(/Not yet run/i);
+    expect(report.toLowerCase()).not.toContain("hackathon");
+
+    expect(results.generatedAt).toBe("2026-11-14T09:15:50.116Z");
+    expect(results.config.model).toBe("gemini-3.5-flash");
+    expect(results.config.maxCalls).toBe(20);
+    expect(results.totals.modelCalls).toBe(41);
+    expect(results.totals.estimatedCostUsd).toBe(0);
   });
 });
