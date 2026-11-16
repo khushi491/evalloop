@@ -409,6 +409,11 @@ describe("aggregation and the results report", () => {
     expect(readme).toContain("evals/results/2026-11-14T09-15-50-116Z.json");
     expect(readme).not.toMatch(/has not been run yet/i);
     expect(readme.toLowerCase()).not.toContain("hackathon");
+    expect(readme).not.toContain("docs/EXPERIMENTS.md");
+    expect(readme).not.toContain("paper/");
+    expect(readme).not.toMatch(/\bICLR\b/);
+    expect(readme).not.toMatch(/\bSEA\b/);
+    expect(readme.toLowerCase()).not.toContain("workshop");
 
     expect(report).toContain("Generated: 2026-11-14T09:15:50.116Z");
     expect(report).toContain("| Model | gemini-3.5-flash |");

@@ -328,7 +328,7 @@ function renderTable(analysis: Analysis): { tex: string; markdown: string } {
   });
   const tex = [
     `% ${banner}`,
-    `% Bootstrap 95% intervals. Khushi writes the surrounding prose.`,
+    `% Bootstrap 95% intervals.`,
     "\\begin{tabular}{llll}",
     "Condition & Hard-check & Judge & Tokens per point \\\\",
     "\\hline",
