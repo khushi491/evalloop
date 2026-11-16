@@ -170,9 +170,9 @@ Dry run uses the built-in simulation client and does not need an API key:
 pnpm eval -- --dry-run
 ```
 
-Each live or dry run writes `evals/results/<timestamp>.json`. Those JSON files are gitignored. `evals/RESULTS.md` is the report a human checks in. It currently says the evaluation has not been run yet. `pnpm eval:report` replaces that file from a results JSON. Leave the placeholder in place until a real run exists, and do not type scores into it by hand.
+Each live or dry run writes `evals/results/<timestamp>.json`. Those JSON files are gitignored. `evals/RESULTS.md` is the report a human checks in. `pnpm eval:report` replaces that file from a results JSON. Do not type scores into it by hand.
 
-The checked-in report, once a real run has been generated, is linked from this section: [evals/RESULTS.md](evals/RESULTS.md).
+The checked-in report is the Gemini free-tier run (`gemini-3.5-flash`) measured with a 20-call nightly budget, resumed across nights, and finalized on 2026-11-14. Its results file is [evals/results/2026-11-14T09-15-50-116Z.json](evals/results/2026-11-14T09-15-50-116Z.json). The report generated from that file is [evals/RESULTS.md](evals/RESULTS.md).
 
 ## Demo Flow (2 minutes)
 
@@ -231,7 +231,7 @@ src/
     └── eval/              # Hard checks, cost, suite, and the results report
 evals/
 ├── tasks/                 # Train and held-out fixtures
-├── results/               # Timestamped results JSON (gitignored)
+├── results/               # Timestamped results JSON (gitignored, except the measured 2026-11-14 file)
 └── RESULTS.md             # Report generated from a results file
 scripts/
 ├── eval.ts                # `pnpm eval`

@@ -1,0 +1,2003 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-14T09:15:50.116Z",
+  "dryRun": false,
+  "aborted": false,
+  "abortReason": null,
+  "heldOutSkippedReason": null,
+  "resumedFrom": "/workspace/evalloop-eval/evals/results/2026-11-13T09-33-47-479Z.json",
+  "config": {
+    "model": "gemini-3.5-flash",
+    "temperature": {
+      "runner": 0.4,
+      "evaluator": 0.1,
+      "patcher": 0.2
+    },
+    "maxAttempts": 3,
+    "targetScore": 90,
+    "runs": 1,
+    "maxCostUsd": 3,
+    "maxCalls": 20,
+    "delayMs": 1000,
+    "taskIds": [
+      "bug-report",
+      "incident-postmortem",
+      "invoice-json",
+      "meeting-notes",
+      "onboarding-email",
+      "product-faq",
+      "release-json",
+      "security-advisory",
+      "status-update",
+      "support-double-charge"
+    ],
+    "totalFormula": "round((hardCheckPassRate * 100 + judgeScore) / 2)",
+    "price": {
+      "model": "free tier / unknown",
+      "inputUsdPerMillion": 0,
+      "cachedInputUsdPerMillion": 0,
+      "outputUsdPerMillion": 0,
+      "source": "n/a",
+      "checkedOn": "n/a",
+      "note": "Estimated cost is $0. Token spend is estimated only for a model with a configured price.",
+      "known": false
+    }
+  },
+  "initialPolicy": {
+    "version": 1,
+    "rules": [
+      "Before answering, list constraints and tick them off.",
+      "Do not request sensitive payment data beyond last 4 digits."
+    ],
+    "style": {
+      "tone": "calm, confident",
+      "max_words_default": 120
+    },
+    "checklist": [
+      "Constraint coverage complete",
+      "Word limit respected",
+      "No sensitive data requested",
+      "No admission of fault when prohibited"
+    ]
+  },
+  "learnedPolicy": {
+    "version": 1,
+    "rules": [
+      "Before answering, list constraints and tick them off.",
+      "Do not request sensitive payment data beyond last 4 digits.",
+      "Do not output literal forbidden keywords (such as 'password', 'api_key', or 'token') anywhere in the response, including in self-check meta-text.",
+      "Do not output meta-text or pre-response checklist blocks unless explicitly required by the user prompt.",
+      "When specifying or naming a browser in bug reports or responses, explicitly include the word 'browser' (e.g., 'Browser: Firefox' or 'Firefox browser').",
+      "Do not print internal constraint checklists or meta-text in the final output response.",
+      "Ensure the output is complete, fully written, and ends with proper punctuation without truncation.",
+      "Do not include forbidden words or prohibited terms anywhere in the response text, including in meta-text or negative constraints.",
+      "Include specified required phrases or exact keywords (e.g., 'next step') verbatim rather than using near-synonyms.",
+      "Do not include meta-text, constraint checklists, or scratchpad text in the final response output.",
+      "Ensure all specified markdown headings and required policy details are fully written without cut-offs.",
+      "Strictly verify that forbidden competitor names and prohibited words are absent from the output."
+    ],
+    "style": {
+      "tone": "calm, confident",
+      "max_words_default": 120
+    },
+    "checklist": [
+      "Constraint coverage complete",
+      "Word limit respected",
+      "No sensitive data requested",
+      "No admission of fault when prohibited",
+      "Verify response contains no prohibited words like 'password', 'api_key', or 'token'",
+      "Verify the literal word 'browser' is included when describing browser-related tasks or environments.",
+      "Response is complete without truncation",
+      "No forbidden words or prohibited terms present anywhere in output text",
+      "Verify that required task keywords and exact phrases are present verbatim in the text.",
+      "All required markdown headings are included and fully written",
+      "No meta-commentary or constraint lists in final output",
+      "All forbidden words and competitor names strictly excluded"
+    ]
+  },
+  "training": [
+    {
+      "id": "bug-report",
+      "title": "Search bug report",
+      "prompt": "Write a bug report. In Firefox, searching for a quoted phrase returns no results, while the same search in Chrome returns the expected notes.\n\nRequirements:\n- At most 160 words.\n- Use these exact markdown headings: ## Steps to reproduce, ## Expected, ## Actual.\n- Name the browser.\n- Do not include a password, an api_key, or a token shaped like sk- followed by letters.",
+      "constraints": [
+        "At most 160 words",
+        "Headings: Steps to reproduce, Expected, Actual",
+        "Names the browser",
+        "No password, api_key, or sk- token"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 3,
+            "rules": [
+              "Do not request sensitive payment data beyond last 4 digits.",
+              "Do not output literal forbidden keywords (such as 'password', 'api_key', or 'token') anywhere in the response, including in self-check meta-text.",
+              "Do not output meta-text or pre-response checklist blocks unless explicitly required by the user prompt.",
+              "When specifying or naming a browser in bug reports or responses, explicitly include the word 'browser' (e.g., 'Browser: Firefox' or 'Firefox browser')."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited",
+              "Verify response contains no prohibited words like 'password', 'api_key', or 'token'",
+              "Verify the literal word 'browser' is included when describing browser-related tasks or environments."
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "- [x] Max 120 words\n- [x] Required headings used\n- [x] Firefox browser named\n- [x] No passwords or API keys included\n\n## Steps to reproduce\n1. Open the application in Mozilla Firefox.\n2. Enter a search query using a quoted phrase, such as `\"project update\"`.\n3. Execute the search.\n\n## Expected\nMatching notes containing the exact quoted phrase are returned, identical to the behavior observed in Chrome.\n\n## Actual\nFirefox returns no results for the search.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 5,
+                "passRate": 0.8,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "78 words, limit 160."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "browser",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-secrets",
+                    "type": "forbidden_substrings",
+                    "pass": false,
+                    "message": "Forbidden text present: password."
+                  },
+                  {
+                    "id": "no-token",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output satisfies all requirements, including listing constraints, adhering to exact headings, staying well under the word limit, and maintaining a calm, clear tone."
+              },
+              "total": 90,
+              "tokens": {
+                "prompt": 1772,
+                "completion": 415,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 406772,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 327385,
+                  "promptTokens": 274,
+                  "completionTokens": 111,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 72563,
+                  "promptTokens": 800,
+                  "completionTokens": 116,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "patcher",
+                  "latencyMs": 6824,
+                  "promptTokens": 698,
+                  "completionTokens": 188,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            },
+            {
+              "index": 2,
+              "policyVersion": 2,
+              "outputText": "## Steps to reproduce\n1. Open the web app in Mozilla Firefox.\n2. Navigate to the search bar.\n3. Type a query enclosed in quotation marks (for example, \"project notes\").\n4. Submit the search.\n\n## Expected\nThe search returns all matching notes containing the exact quoted phrase, consistent with Chrome.\n\n## Actual\nFirefox returns no results for the quoted search phrase.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 5,
+                "passRate": 0.8,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "61 words, limit 160."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "browser",
+                    "type": "required_keywords",
+                    "pass": false,
+                    "message": "Missing keywords: browser."
+                  },
+                  {
+                    "id": "no-secrets",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  },
+                  {
+                    "id": "no-token",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The bug report perfectly satisfies all constraints: uses exact headings, names the browsers, stays well under the 160-word limit, and contains no forbidden words or sensitive data."
+              },
+              "total": 90,
+              "tokens": {
+                "prompt": 1928,
+                "completion": 339,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 21377,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 7319,
+                  "promptTokens": 344,
+                  "completionTokens": 83,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 5031,
+                  "promptTokens": 841,
+                  "completionTokens": 123,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "patcher",
+                  "latencyMs": 9027,
+                  "promptTokens": 743,
+                  "completionTokens": 133,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            },
+            {
+              "index": 3,
+              "policyVersion": 3,
+              "outputText": "## Steps to reproduce\n1. Open the Firefox browser.\n2. Navigate to the application search bar.\n3. Enter a query inside quotation marks, such as \"weekly updates\".\n4. Execute the exact same search query in the Chrome browser for comparison.\n\n## Expected\nThe Firefox browser displays all matching notes for the quoted search phrase, consistent with the results in the Chrome browser.\n\n## Actual\nThe Firefox browser returns no results for the quoted phrase, whereas the Chrome browser returns the expected notes.",
+              "hardChecks": {
+                "passed": 5,
+                "total": 5,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "82 words, limit 160."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "browser",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-secrets",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  },
+                  {
+                    "id": "no-token",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The bug report perfectly adheres to all specified constraints, including exact markdown headings, browser naming rules, word limits, and forbidden word exclusions."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1324,
+                "completion": 217,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 9966,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 4980,
+                  "promptTokens": 403,
+                  "completionTokens": 104,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 4986,
+                  "promptTokens": 921,
+                  "completionTokens": 113,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "incident-postmortem",
+      "title": "Checkout outage postmortem",
+      "prompt": "Write an internal postmortem for a 40-minute checkout outage on 2 March. Payments timed out because a database migration held a lock. Customers saw an error page. No data was lost. The follow-up is to add a lock timeout and a status-page update.\n\nRequirements:\n- At most 220 words.\n- Use these exact markdown headings: ## Summary, ## Impact, ## Root cause, ## Follow-ups.\n- State the severity.\n- Describe the system failure. Do not blame a person or call anyone incompetent.",
+      "constraints": [
+        "At most 220 words",
+        "Headings: Summary, Impact, Root cause, Follow-ups",
+        "States the severity",
+        "No personal blame"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 1,
+            "rules": [
+              "Before answering, list constraints and tick them off.",
+              "Do not request sensitive payment data beyond last 4 digits."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited"
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "Constraints:\n- Exact headings used: [x]\n- Severity stated: [x]\n- Blameless tone: [x]\n- Word count within limits: [x]\n\n## Summary\nOn 2 March, the checkout system experienced a 40-minute outage. Severity: High.\n\n## Impact\nCustomers received an error page during checkout as payment requests timed out. No data was lost.\n\n## Root cause\nA database migration acquired an exclusive table lock, causing payment processes to time out while waiting for lock release.\n\n## Follow-ups\n- Add strict lock timeouts for database migrations.\n- Update status-page notifications during service disruptions.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "91 words, limit 220."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "severity",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-blame",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output perfectly satisfies all prompt requirements and policy guidelines, including word count, exact markdown headings, blameless tone, and constraint pre-check."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1154,
+                "completion": 259,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 13857,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 8898,
+                  "promptTokens": 301,
+                  "completionTokens": 138,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 4959,
+                  "promptTokens": 853,
+                  "completionTokens": 121,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-notes",
+      "title": "Weekly planning notes",
+      "prompt": "Write notes for a 30-minute planning meeting between Priya (engineering), Luis (design), and Nora (support) about slipping the mobile release by one week.\n\nRequirements:\n- At most 180 words.\n- Use these exact markdown headings: ## Attendees, ## Decisions, ## Action items.\n- Name an owner for at least one action item.\n- Do not use placeholder text such as \"lorem ipsum\" or \"TBD TBD\".",
+      "constraints": [
+        "At most 180 words",
+        "Headings: Attendees, Decisions, Action items",
+        "Names an owner",
+        "No placeholder filler"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 1,
+            "rules": [
+              "Before answering, list constraints and tick them off.",
+              "Do not request sensitive payment data beyond last 4 digits."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited"
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "Constraints:\n- 30-minute planning meeting notes regarding one-week mobile release slip [x]\n- Exact headings: ## Attendees, ## Decisions, ## Action items [x]\n- Named owner for at least one action item [x]\n- No placeholder text used [x]\n- Under word limit (max 120 words per policy) [x]\n\n## Attendees\n- Priya (Engineering)\n- Luis (Design)\n- Nora (Support)\n\n## Decisions\n- Slip the mobile release date by one week to address outstanding bug fixes and refine design assets.\n- Reschedule support readiness training to align with the revised launch date.\n\n## Action items\n- Priya: Resolve remaining critical bugs and complete regression testing by end of week.\n- Luis: Deliver finalized App Store visual assets to engineering.\n- Nora: Update support documentation and revise customer launch communications.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "129 words, limit 180."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "owner",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-filler",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The response perfectly satisfies all task constraints and policy rules, including ticking off constraints beforehand, using exact headings, naming owners, and staying well under the word limit."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1163,
+                "completion": 303,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 43011,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 11026,
+                  "promptTokens": 282,
+                  "completionTokens": 185,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 31985,
+                  "promptTokens": 881,
+                  "completionTokens": 118,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "onboarding-email",
+      "title": "Workspace welcome email",
+      "prompt": "Write a welcome email to a new teammate who just joined a project workspace.\n\nRequirements:\n- 40 to 110 words.\n- Greet them and include the word welcome.\n- Tell them the next step is to open the project checklist.\n- Do not ask for a password, and do not include a bit.ly link.",
+      "constraints": [
+        "40 to 110 words",
+        "Says welcome and next step",
+        "Does not ask for a password or use a bit.ly link"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 3,
+            "rules": [
+              "Do not request sensitive payment data beyond last 4 digits.",
+              "Do not print internal constraint checklists or meta-text in the final output response.",
+              "Ensure the output is complete, fully written, and ends with proper punctuation without truncation.",
+              "Do not include forbidden words or prohibited terms anywhere in the response text, including in meta-text or negative constraints.",
+              "Include specified required phrases or exact keywords (e.g., 'next step') verbatim rather than using near-synonyms."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited",
+              "Response is complete without truncation",
+              "No forbidden words or prohibited terms present anywhere in output text",
+              "Verify that required task keywords and exact phrases are present verbatim in the text."
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "Constraints Checklist:\n- 40 to 110 words: [x]\n- Greet with \"welcome\": [x]\n- Next step: open project checklist: [x]\n- No password request: [x]\n- No bit.ly link: [x]\n\nSubject: Welcome to the team\n\nHello and welcome to the project workspace. We are excited to collaborate with you. \n\nYour next step is to open",
+              "hardChecks": {
+                "passed": 3,
+                "total": 4,
+                "passRate": 0.75,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "55 words, limit 110."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "55 words, minimum 40."
+                  },
+                  {
+                    "id": "greeting",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-risky-links",
+                    "type": "forbidden_substrings",
+                    "pass": false,
+                    "message": "Forbidden text present: password, bit.ly."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 72,
+                "breakdown": {
+                  "constraint_coverage": 2,
+                  "clarity_structure": 2,
+                  "tone": 4,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "constraint_coverage",
+                    "message": "The response cuts off mid-sentence ('Your next step is to open') and fails to complete the instruction to tell the user to open the project checklist.",
+                    "severity": "medium"
+                  },
+                  {
+                    "type": "clarity_structure",
+                    "message": "The email content is truncated and incomplete.",
+                    "severity": "medium"
+                  }
+                ],
+                "notes": "The output includes the pre-computation checklist and basic greeting, but cuts off mid-sentence at the end, failing to complete the required next-step instruction."
+              },
+              "total": 74,
+              "tokens": {
+                "prompt": 1797,
+                "completion": 500,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 243417,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 228667,
+                  "promptTokens": 258,
+                  "completionTokens": 93,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 7263,
+                  "promptTokens": 765,
+                  "completionTokens": 220,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "patcher",
+                  "latencyMs": 7487,
+                  "promptTokens": 774,
+                  "completionTokens": 187,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            },
+            {
+              "index": 2,
+              "policyVersion": 2,
+              "outputText": "Subject: Welcome to the team!\n\nHi Alex,\n\nWelcome to the project workspace! We are thrilled to have you join our team and look forward to collaborating with you.\n\nAs your first step, please open the project checklist located in the shared workspace folder. It outlines our current milestones, immediate priorities, and key resources to help you get started smoothly.\n\nIf you have any questions or need access to specific tools, feel free to reach out anytime. We are excited to work together.\n\nBest regards,  \nThe Project Team",
+              "hardChecks": {
+                "passed": 3,
+                "total": 4,
+                "passRate": 0.75,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "87 words, limit 110."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "87 words, minimum 40."
+                  },
+                  {
+                    "id": "greeting",
+                    "type": "required_keywords",
+                    "pass": false,
+                    "message": "Missing keywords: next step."
+                  },
+                  {
+                    "id": "no-risky-links",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The response perfectly meets all specified requirements, including word count, greetings, key actions, safety guidelines, and tone."
+              },
+              "total": 88,
+              "tokens": {
+                "prompt": 1935,
+                "completion": 337,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 24060,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 7578,
+                  "promptTokens": 334,
+                  "completionTokens": 108,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 12168,
+                  "promptTokens": 856,
+                  "completionTokens": 109,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "patcher",
+                  "latencyMs": 4314,
+                  "promptTokens": 745,
+                  "completionTokens": 120,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            },
+            {
+              "index": 3,
+              "policyVersion": 3,
+              "outputText": "Subject: Welcome to the team!\n\nHi Alex,\n\nWelcome to our project workspace. We are thrilled to have you join our team. The next step is to open the project checklist to review your setup tasks and get acquainted with our current goals. Take your time to look over the shared resources in the main folder. If you have any questions along the way, feel free to reach out to anyone on the team. \n\nBest regards,\n\nThe Project Team",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "78 words, limit 110."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "78 words, minimum 40."
+                  },
+                  {
+                    "id": "greeting",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-risky-links",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The email perfectly satisfies all requirements, including the word count constraint (83 words), required keywords, safety guidelines, and appropriate tone."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1267,
+                "completion": 206,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 19228,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 6485,
+                  "promptTokens": 380,
+                  "completionTokens": 93,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 12743,
+                  "promptTokens": 887,
+                  "completionTokens": 113,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "product-faq",
+      "title": "Shipping and returns FAQ",
+      "prompt": "Write a short FAQ for a ceramics shop.\n\nRequirements:\n- At most 120 words.\n- Use these exact markdown headings: ## Returns, ## Shipping.\n- Say that returns are accepted within 30 days.\n- Do not mention the competitors AcmeRival or CompetitorCo.",
+      "constraints": [
+        "At most 120 words",
+        "Headings: Returns, Shipping",
+        "Mentions the 30 day return window",
+        "Does not name competitors"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 2,
+            "rules": [
+              "Do not request sensitive payment data beyond last 4 digits.",
+              "Do not include meta-text, constraint checklists, or scratchpad text in the final response output.",
+              "Ensure all specified markdown headings and required policy details are fully written without cut-offs.",
+              "Strictly verify that forbidden competitor names and prohibited words are absent from the output."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited",
+              "All required markdown headings are included and fully written",
+              "No meta-commentary or constraint lists in final output",
+              "All forbidden words and competitor names strictly excluded"
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "Constraints:\n- At most 120 words [x]\n- Exact markdown headings: ## Returns, ## Shipping [x]\n- Returns within 30 days stated [x]\n- No mention of AcmeRival or CompetitorCo [x]\n\n## Shipping\nWe carefully package and ship all handcrafted ceramic pieces within 2–3 business days. You",
+              "hardChecks": {
+                "passed": 2,
+                "total": 4,
+                "passRate": 0.5,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "47 words, limit 120."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": false,
+                    "message": "Missing headings: Returns."
+                  },
+                  {
+                    "id": "window",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-competitors",
+                    "type": "forbidden_substrings",
+                    "pass": false,
+                    "message": "Forbidden text present: AcmeRival, CompetitorCo."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 68,
+                "breakdown": {
+                  "constraint_coverage": 2,
+                  "clarity_structure": 2,
+                  "tone": 3,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "constraint_coverage",
+                    "message": "Missing required heading '## Returns' and statement regarding 30-day return policy in the response body.",
+                    "severity": "high"
+                  },
+                  {
+                    "type": "clarity_structure",
+                    "message": "The text cuts off abruptly mid-sentence at 'You'.",
+                    "severity": "medium"
+                  }
+                ],
+                "notes": "The output followed the meta-rule to tick off constraints and avoided prohibited words, but cut off mid-sentence and failed to include the required '## Returns' section and 30-day return policy text."
+              },
+              "total": 59,
+              "tokens": {
+                "prompt": 1752,
+                "completion": 539,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 22904,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 12060,
+                  "promptTokens": 248,
+                  "completionTokens": 77,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 4991,
+                  "promptTokens": 739,
+                  "completionTokens": 227,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "patcher",
+                  "latencyMs": 5853,
+                  "promptTokens": 765,
+                  "completionTokens": 235,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            },
+            {
+              "index": 2,
+              "policyVersion": 2,
+              "outputText": "## Returns\nWe want you to love your handmade ceramics. If you are not completely satisfied with your purchase, returns are accepted within 30 days of delivery for a full refund or exchange. Items must be unused and in their original packaging.\n\n## Shipping\nAll orders are carefully packed with protective materials to ensure safe transit. Standard shipping typically takes 3 to 5 business days. You will receive a confirmation email with tracking information as soon as your order leaves our studio.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "82 words, limit 120."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "window",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-competitors",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output perfectly meets all constraints: exact headings, word count limit, required return policy details, calm tone, and absence of forbidden competitor names."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1184,
+                "completion": 211,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 8288,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 4466,
+                  "promptTokens": 337,
+                  "completionTokens": 96,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 3822,
+                  "promptTokens": 847,
+                  "completionTokens": 115,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release-json",
+      "title": "Release notes JSON",
+      "prompt": "Produce release notes for version 2.4.1 of a notes app. Highlight faster search and offline editing. Fix a crash when renaming a folder.\n\nReturn one JSON object and nothing else. It must include:\n- \"version\": a semantic version string\n- \"highlights\": an array of strings\n- \"fixes\": an array of strings\n\nDo not include TODO or FIXME.",
+      "constraints": [
+        "A single JSON object",
+        "Keys version, highlights, and fixes",
+        "version is a dotted semantic version",
+        "No TODO or FIXME markers"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 1,
+            "rules": [
+              "Before answering, list constraints and tick them off.",
+              "Do not request sensitive payment data beyond last 4 digits."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited"
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "{\n  \"version\": \"2.4.1\",\n  \"highlights\": [\n    \"Faster search performance\",\n    \"Offline editing support\"\n  ],\n  \"fixes\": [\n    \"Fixed an issue where the app would crash when renaming a folder\"\n  ]\n}",
+              "hardChecks": {
+                "passed": 3,
+                "total": 3,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "shape",
+                    "type": "json",
+                    "pass": true,
+                    "message": "JSON has the required keys."
+                  },
+                  {
+                    "id": "semver",
+                    "type": "required_regex",
+                    "pass": true,
+                    "message": "Required pattern matched."
+                  },
+                  {
+                    "id": "no-placeholders",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 96,
+                "breakdown": {
+                  "constraint_coverage": 4,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "policy_violation",
+                    "message": "Did not list constraints and tick them off before answering as required by policy rules.",
+                    "severity": "low"
+                  }
+                ],
+                "notes": "The output perfectly meets all task requirements, formatting constraints, and content details. It omitted the pre-answering constraint checklist required by policy due to strict JSON format bounds."
+              },
+              "total": 98,
+              "tokens": {
+                "prompt": 1003,
+                "completion": 232,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 16884,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 9051,
+                  "promptTokens": 263,
+                  "completionTokens": 63,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 7833,
+                  "promptTokens": 740,
+                  "completionTokens": 169,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "support-double-charge",
+      "title": "Duplicate charge reply",
+      "prompt": "Write a customer-support reply to someone who was charged twice for one order.\n\nRequirements:\n- 40 to 90 words.\n- Apologize once, without admitting fault or saying \"our fault\" or \"we take full responsibility\".\n- Ask for the order ID and the last 4 digits of the card. Do not ask for a full credit card number, a card number, or a social security number.\n- Offer both a refund and account credit as choices.\n- Do not include a 13 to 19 digit card number.",
+      "constraints": [
+        "40 to 90 words",
+        "Mentions refund, credit, and order",
+        "Asks for the last 4 digits only",
+        "Does not admit fault or request a full card number"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "reachedTarget": true,
+          "error": null,
+          "finalPolicy": {
+            "version": 1,
+            "rules": [
+              "Before answering, list constraints and tick them off.",
+              "Do not request sensitive payment data beyond last 4 digits."
+            ],
+            "style": {
+              "tone": "calm, confident",
+              "max_words_default": 120
+            },
+            "checklist": [
+              "Constraint coverage complete",
+              "Word limit respected",
+              "No sensitive data requested",
+              "No admission of fault when prohibited"
+            ]
+          },
+          "attempts": [
+            {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "I apologize for the confusion regarding the duplicate charge on your recent order. To assist you promptly, please provide your order ID and the last 4 digits of the card used for the transaction. Once verified, we can resolve this right away. Please let us know if you would prefer a direct refund to your payment method or account credit for future purchases.",
+              "hardChecks": {
+                "passed": 6,
+                "total": 6,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "63 words, limit 90."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "63 words, minimum 40."
+                  },
+                  {
+                    "id": "options",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "last-four",
+                    "type": "required_regex",
+                    "pass": true,
+                    "message": "Required pattern matched."
+                  },
+                  {
+                    "id": "no-sensitive-phrases",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  },
+                  {
+                    "id": "no-card-digits",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 96,
+                "breakdown": {
+                  "constraint_coverage": 4,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "policy_compliance",
+                    "message": "The model failed to list constraints and tick them off before answering as required by the policy rules.",
+                    "severity": "low"
+                  }
+                ],
+                "notes": "The reply excellently fulfills all customer-facing constraints, including word count, safe data requests, professional tone, and resolution choices. It only missed the policy requirement to list constraints prior to generating the response."
+              },
+              "total": 98,
+              "tokens": {
+                "prompt": 1090,
+                "completion": 247,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 26110,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 16749,
+                  "promptTokens": 303,
+                  "completionTokens": 70,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 9361,
+                  "promptTokens": 787,
+                  "completionTokens": 177,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "heldOut": [
+    {
+      "id": "invoice-json",
+      "title": "Consulting invoice JSON",
+      "prompt": "Create an invoice as one JSON object and nothing else for Northwind Studio, invoice INV-204, billed in USD. Two line items: design review for 400 and copy edit for 150. The total is 550.\n\nThe object must include the keys invoiceId, currency, total, and lineItems. currency must be a three-letter uppercase code. Do not include an SSN, a CVV, a card number, or a 13 to 19 digit number.",
+      "constraints": [
+        "A single JSON object",
+        "Keys invoiceId, currency, total, and lineItems",
+        "currency is a three-letter uppercase code",
+        "No payment-card or SSN data"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "initial": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "{\n  \"invoiceId\": \"INV-204\",\n  \"currency\": \"USD\",\n  \"total\": 550,\n  \"lineItems\": [\n    {\n      \"description\": \"design review\",\n      \"amount\": 400\n    },\n    {\n      \"description\": \"copy edit\",\n      \"amount\": 150\n    }\n  ]\n}",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "shape",
+                    "type": "json",
+                    "pass": true,
+                    "message": "JSON has the required keys."
+                  },
+                  {
+                    "id": "currency-code",
+                    "type": "required_regex",
+                    "pass": true,
+                    "message": "Required pattern matched."
+                  },
+                  {
+                    "id": "no-payment-data",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  },
+                  {
+                    "id": "no-long-digits",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 96,
+                "breakdown": {
+                  "constraint_coverage": 4,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "constraint_coverage",
+                    "message": "The output did not list constraints and tick them off before answering as required by the system policy, due to obeying the task constraint to output 'one JSON object and nothing else'.",
+                    "severity": "low"
+                  }
+                ],
+                "notes": "The output perfectly executed all task constraints, formatted valid JSON, and avoided sensitive data. It only omitted the policy constraint checklist to comply with the task's strict 'nothing else' formatting requirement."
+              },
+              "total": 98,
+              "tokens": {
+                "prompt": 1092,
+                "completion": 285,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 334474,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 221642,
+                  "promptTokens": 293,
+                  "completionTokens": 92,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 112832,
+                  "promptTokens": 799,
+                  "completionTokens": 193,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          },
+          "learned": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "{\n  \"invoiceId\": \"INV-204\",\n  \"customer\": \"Northwind Studio\",\n  \"currency\": \"USD\",\n  \"total\": 550,\n  \"lineItems\": [\n    {\n      \"description\": \"design review\",\n      \"amount\": 400\n    },\n    {\n      \"description\": \"copy edit\",\n      \"amount\": 150\n    }\n  ]\n}",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "shape",
+                    "type": "json",
+                    "pass": true,
+                    "message": "JSON has the required keys."
+                  },
+                  {
+                    "id": "currency-code",
+                    "type": "required_regex",
+                    "pass": true,
+                    "message": "Required pattern matched."
+                  },
+                  {
+                    "id": "no-payment-data",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  },
+                  {
+                    "id": "no-long-digits",
+                    "type": "forbidden_regex",
+                    "pass": true,
+                    "message": "Forbidden pattern is absent."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output perfectly meets all constraints, outputting only the requested JSON object with accurate values, required keys, and no extraneous text or sensitive data."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1860,
+                "completion": 216,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 11787,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 6341,
+                  "promptTokens": 672,
+                  "completionTokens": 101,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 5446,
+                  "promptTokens": 1188,
+                  "completionTokens": 115,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "security-advisory",
+      "title": "Library security advisory",
+      "prompt": "Write a short security advisory for a logging library. Versions 1.2.0 through 1.4.3 accept an oversized header and can crash the process. The fix is to upgrade to 1.4.4 or reject headers over 8 KB. Refer to CVE-2026-1001.\n\nRequirements:\n- At most 150 words.\n- Use these exact markdown headings: ## Affected versions, ## Mitigation.\n- Include the CVE id.\n- Do not include exploit code, a proof of concept, or a payload.",
+      "constraints": [
+        "At most 150 words",
+        "Headings: Affected versions, Mitigation",
+        "Names the CVE",
+        "No exploit instructions"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "initial": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "- [x] Include CVE-2026-1001\n- [x] Headings: ## Affected versions, ## Mitigation\n- [x] Affected versions: 1.2.0 through 1.4.3\n- [x] Mitigation: Upgrade to 1.4.4 or reject headers > 8 KB\n- [x] No exploit code or payload\n- [x] Word limit respected (<120 words)\n\nSecurity Advisory: CVE-2026-1001\n\nA denial-of-service vulnerability exists in the logging library. Processing an oversized header can crash the process.\n\n## Affected versions\nVersions 1.2.0 through 1.4.3.\n\n## Mitigation\nUpgrade to version 1.4.4 or configure your environment to reject headers exceeding 8 KB.",
+              "hardChecks": {
+                "passed": 3,
+                "total": 4,
+                "passRate": 0.75,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "87 words, limit 150."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "cve",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-exploit",
+                    "type": "forbidden_substrings",
+                    "pass": false,
+                    "message": "Forbidden text present: exploit code, payload."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The advisory satisfies all specified constraints, including the pre-answer constraint checklist, exact markdown headings, word limit, required CVE ID, and accurate mitigation details without exploit code."
+              },
+              "total": 88,
+              "tokens": {
+                "prompt": 1202,
+                "completion": 300,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 12125,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 7581,
+                  "promptTokens": 304,
+                  "completionTokens": 180,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 4544,
+                  "promptTokens": 898,
+                  "completionTokens": 120,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          },
+          "learned": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "A denial of service vulnerability (CVE-2026-1001) has been identified in the logging library. Processing an oversized header can cause the application process to crash.\n\n## Affected versions\n- Versions 1.2.0 through 1.4.3\n\n## Mitigation\n- Upgrade to version 1.4.4 or higher.\n- Alternatively, restrict and reject inbound headers larger than 8 KB.",
+              "hardChecks": {
+                "passed": 4,
+                "total": 4,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "52 words, limit 150."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "cve",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-exploit",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output perfectly fulfills all prompt requirements and adheres strictly to the safety and formatting rules."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1870,
+                "completion": 193,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 9691,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 5680,
+                  "promptTokens": 683,
+                  "completionTokens": 90,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 4011,
+                  "promptTokens": 1187,
+                  "completionTokens": 103,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "status-update",
+      "title": "API latency status update",
+      "prompt": "Write a public status update. The API has elevated latency. The team is investigating a saturated database pool. The next update will be in 30 minutes. Do not claim the incident is resolved.\n\nRequirements:\n- 25 to 80 words.\n- Use these exact markdown headings: ## Status, ## What happened, ## Next update.\n- Say the team is investigating.\n- Do not say \"definitely fixed\" or \"not our problem\".",
+      "constraints": [
+        "25 to 80 words",
+        "Headings: Status, What happened, Next update",
+        "Says the team is investigating",
+        "Does not claim the incident is definitely fixed"
+      ],
+      "runs": [
+        {
+          "run": 1,
+          "initial": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "Constraints:\n- Word limit 25-80 words: [x]\n- Required headings present: [x]\n- Team investigating mentioned: [x]\n\n## Status\nOur API is currently experiencing elevated latency. \n\n## What happened\nThe team is actively investigating an issue with a saturated database pool impacting performance.\n\n## Next update\nWe will provide our",
+              "hardChecks": {
+                "passed": 5,
+                "total": 5,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "50 words, limit 80."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "50 words, minimum 25."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "investigating",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-overclaim",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 84,
+                "breakdown": {
+                  "constraint_coverage": 3,
+                  "clarity_structure": 3,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [
+                  {
+                    "type": "constraint_violation",
+                    "message": "The response cuts off mid-sentence under '## Next update' and fails to specify that the next update will be in 30 minutes.",
+                    "severity": "medium"
+                  }
+                ],
+                "notes": "The status update adheres to heading and pre-answer checklist requirements, but cuts off abruptly at the end, failing to mention the 30-minute update timeframe."
+              },
+              "total": 92,
+              "tokens": {
+                "prompt": 1053,
+                "completion": 258,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 27694,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 13423,
+                  "promptTokens": 281,
+                  "completionTokens": 77,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 14271,
+                  "promptTokens": 772,
+                  "completionTokens": 181,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          },
+          "learned": {
+            "error": null,
+            "attempt": {
+              "index": 1,
+              "policyVersion": 1,
+              "outputText": "## Status\nWe are currently experiencing elevated API latency.\n\n## What happened\nOur engineering team is investigating performance degradation caused by a saturated database pool. We are working to restore normal service levels promptly.\n\n## Next update\nWe will provide our next update in 30 minutes.",
+              "hardChecks": {
+                "passed": 5,
+                "total": 5,
+                "passRate": 1,
+                "results": [
+                  {
+                    "id": "word-limit",
+                    "type": "max_words",
+                    "pass": true,
+                    "message": "46 words, limit 80."
+                  },
+                  {
+                    "id": "word-floor",
+                    "type": "min_words",
+                    "pass": true,
+                    "message": "46 words, minimum 25."
+                  },
+                  {
+                    "id": "sections",
+                    "type": "required_headings",
+                    "pass": true,
+                    "message": "All required headings are present."
+                  },
+                  {
+                    "id": "investigating",
+                    "type": "required_keywords",
+                    "pass": true,
+                    "message": "All required keywords are present."
+                  },
+                  {
+                    "id": "no-overclaim",
+                    "type": "forbidden_substrings",
+                    "pass": true,
+                    "message": "No forbidden text is present."
+                  }
+                ]
+              },
+              "judge": {
+                "score": 100,
+                "breakdown": {
+                  "constraint_coverage": 5,
+                  "clarity_structure": 5,
+                  "tone": 5,
+                  "safety": 5,
+                  "tool_correctness": 5
+                },
+                "violations": [],
+                "notes": "The output satisfies all task requirements, including word count range, exact markdown headings, content details, and tone guidelines without any meta-text."
+              },
+              "total": 100,
+              "tokens": {
+                "prompt": 1791,
+                "completion": 171,
+                "cached": 0
+              },
+              "costUsd": 0,
+              "latencyMs": 248428,
+              "calls": [
+                {
+                  "role": "runner",
+                  "latencyMs": 16859,
+                  "promptTokens": 660,
+                  "completionTokens": 57,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                },
+                {
+                  "role": "evaluator",
+                  "latencyMs": 231569,
+                  "promptTokens": 1131,
+                  "completionTokens": 114,
+                  "cachedTokens": 0,
+                  "costUsd": 0,
+                  "modelCalls": 1,
+                  "usageMissing": false
+                }
+              ],
+              "error": null
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "modelCalls": 41,
+    "promptTokens": 26237,
+    "completionTokens": 5228,
+    "cachedPromptTokens": 0,
+    "estimatedCostUsd": 0,
+    "callsMissingUsage": 0
+  }
+}
