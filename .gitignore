@@ -23,5 +23,8 @@ pnpm-debug.log*
 evals/results/*
 !evals/results/.gitkeep
 
+paper/figures/*
+!paper/figures/.gitkeep
+
 .DS_Store
 *.pem

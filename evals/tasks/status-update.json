@@ -2,6 +2,7 @@
   "id": "status-update",
   "title": "API latency status update",
   "split": "heldout",
+  "category": "constrained-writing",
   "prompt": "Write a public status update. The API has elevated latency. The team is investigating a saturated database pool. The next update will be in 30 minutes. Do not claim the incident is resolved.\n\nRequirements:\n- 25 to 80 words.\n- Use these exact markdown headings: ## Status, ## What happened, ## Next update.\n- Say the team is investigating.\n- Do not say \"definitely fixed\" or \"not our problem\".",
   "constraints": [
     "25 to 80 words",

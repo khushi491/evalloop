@@ -1,0 +1,46 @@
+{
+  "id": "changelog-summary",
+  "title": "Release 4.2 changelog",
+  "split": "train",
+  "category": "summarization",
+  "prompt": "Turn these notes into a changelog of at most 100 words.\n\nSource: Version 4.2.0 adds csv export. It fixes a duplicate login bug. It removes the legacy api.\n\nUse these exact markdown headings: ## Added, ## Fixed, ## Removed. Mention csv export, duplicate login, and legacy api. Do not write TODO.",
+  "constraints": [
+    "At most 100 words",
+    "Headings: Added, Fixed, Removed",
+    "Keeps csv export, duplicate login, and legacy api",
+    "No TODO marker"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 100
+    },
+    {
+      "id": "sections",
+      "type": "required_headings",
+      "headings": [
+        "Added",
+        "Fixed",
+        "Removed"
+      ]
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "csv export",
+        "duplicate login",
+        "legacy api",
+        "4.2.0"
+      ]
+    },
+    {
+      "id": "no-todo",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "TODO"
+      ]
+    }
+  ]
+}

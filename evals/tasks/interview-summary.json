@@ -1,0 +1,43 @@
+{
+  "id": "interview-summary",
+  "title": "Interview notes summary",
+  "split": "heldout",
+  "category": "summarization",
+  "prompt": "Summarize these interview notes in 30 to 70 words. Do not say the candidate was hired.\n\nSource: Mina Shah interviewed for the backend role. She has 6 years of experience and writes Go. She can start in March. No decision was recorded in the notes.\n\nThe summary must mention Mina Shah, backend, 6 years, Go, and March.",
+  "constraints": [
+    "30 to 70 words",
+    "Keeps the candidate, role, experience, language, and start month",
+    "Does not say the candidate was hired"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 70
+    },
+    {
+      "id": "word-floor",
+      "type": "min_words",
+      "min": 30
+    },
+    {
+      "id": "facts",
+      "type": "required_keywords",
+      "keywords": [
+        "Mina Shah",
+        "backend",
+        "6 years",
+        "Go",
+        "March"
+      ]
+    },
+    {
+      "id": "no-decision",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "hired",
+        "we offer"
+      ]
+    }
+  ]
+}

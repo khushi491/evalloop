@@ -1,6 +1,7 @@
 import type { Policy } from "../schemas";
 import type { FIXED_TEMPERATURES } from "../temperatures";
 import type { HardCheckReport } from "./checks";
+import type { EvalMethod, PatcherFeedback, StoppingRule } from "./conditions";
 
 export interface JudgeRecord {
   score: number;
@@ -16,7 +17,7 @@ export interface JudgeRecord {
 }
 
 export interface AttemptCall {
-  role: "runner" | "evaluator" | "patcher";
+  role: "runner" | "evaluator" | "patcher" | "reviser";
   latencyMs: number;
   promptTokens: number;
   completionTokens: number;
@@ -38,6 +39,10 @@ export interface AttemptRecord {
   latencyMs: number;
   calls: AttemptCall[];
   error: string | null;
+  /** Seed sent with this attempt, when the run had a seed. */
+  seed?: number | null;
+  /** True on the sample best-of-n kept. */
+  selected?: boolean;
 }
 
 export interface TrainingRunRecord {
@@ -46,6 +51,8 @@ export interface TrainingRunRecord {
   error: string | null;
   finalPolicy: Policy;
   attempts: AttemptRecord[];
+  /** Judge-selected attempt for best-of-n. Absent means the last scored attempt. */
+  selectedAttempt?: number | null;
 }
 
 export interface TrainingTaskRecord {
@@ -58,13 +65,23 @@ export interface TrainingTaskRecord {
 
 export interface ScoredPass {
   error: string | null;
+  /** The reported attempt. For best-of-n this is the judge-selected sample. */
   attempt: AttemptRecord | null;
+  /**
+   * Every sample, including `attempt`, when a method draws more than one.
+   * Totals count these calls once. Absent on the single-attempt policy transfer.
+   */
+  samples?: AttemptRecord[];
+  /** False when a budget abort left this pass unfinished. */
+  complete?: boolean;
 }
 
 export interface HeldOutRunRecord {
   run: number;
   initial: ScoredPass;
   learned: ScoredPass;
+  /** Frozen-policy transfer applies only to the policy method. */
+  transfer?: "frozen-policy" | "not-applicable";
 }
 
 export interface HeldOutTaskRecord {
@@ -105,6 +122,15 @@ export interface EvalResults {
     delayMs: number;
     taskIds: string[];
     totalFormula: string;
+    /** Present on runs from the method-aware harness. */
+    method?: EvalMethod;
+    stopping?: StoppingRule;
+    feedback?: PatcherFeedback;
+    seed?: number | null;
+    baseUrl?: string;
+    provider?: string;
+    /** Shared per-task cap, in model calls, for every method. */
+    perTaskCallBudget?: number;
     price: {
       model: string;
       inputUsdPerMillion: number;

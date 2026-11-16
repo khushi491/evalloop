@@ -53,6 +53,7 @@ function usage(prompt: number, completion = 0, cached = 0): TokenUsage {
 function task(overrides: Partial<EvalTask> & Pick<EvalTask, "id" | "split" | "prompt">): EvalTask {
   return {
     title: overrides.id,
+    category: "constrained-writing",
     constraints: ["Follow the prompt"],
     checks: [{ id: "words", type: "max_words", max: 20 }],
     ...overrides,
@@ -252,14 +253,16 @@ describe("eval suite", () => {
     expect(results.totals.estimatedCostUsd).toBe(0);
     expect(results.totals.modelCalls).toBe(
       expectedFullSuiteCalls({
-        trainingTasks: 7,
-        heldOutTasks: 3,
+        trainingTasks: 20,
+        heldOutTasks: 10,
         runs: 1,
         maxAttempts: 3,
       })
     );
     expect(results.training.every((item) => item.runs[0]?.attempts.length === 3)).toBe(true);
-    expect(results.heldOut).toHaveLength(3);
+    expect(results.heldOut).toHaveLength(10);
+    expect(results.config.method).toBe("policy");
+    expect(results.config.seed).toBeNull();
     expect(results.learnedPolicy.rules.length).toBeGreaterThan(DEFAULT_POLICY.rules.length);
     expect(results.config.temperature).toEqual(FIXED_TEMPERATURES);
     expect(results.config.price.inputUsdPerMillion).toBe(0.15);
@@ -461,7 +464,29 @@ describe("eval CLI", () => {
       dryRun: false,
       tasks: null,
       resume: null,
+      method: "policy",
+      stopping: "judge-and-hard",
+      feedback: "both",
+      seed: null,
     });
+    expect(
+      parseEvalArgs([
+        "--method",
+        "best-of-n",
+        "--stopping",
+        "judge-only",
+        "--feedback",
+        "hard-checks-only",
+        "--seed",
+        "3",
+      ])
+    ).toMatchObject({
+      method: "best-of-n",
+      stopping: "judge-only",
+      feedback: "hard-checks-only",
+      seed: 3,
+    });
+    expect(() => parseEvalArgs(["--method", "nope"])).toThrow(/method/);
     expect(parseEvalArgs(["--tasks", "a, b", "--runs", "2", "--max-cost", "0.5"])).toMatchObject({
       tasks: ["a", "b"],
       runs: 2,

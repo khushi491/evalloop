@@ -1,0 +1,45 @@
+{
+  "id": "employee-json",
+  "title": "Employee record JSON",
+  "split": "heldout",
+  "category": "structured-output",
+  "prompt": "Return one JSON object and nothing else for employee E-17 in the Support department. The active flag is true.\n\nInclude the keys employeeId, department, and active. active must be the JSON boolean true. Do not include an SSN.",
+  "constraints": [
+    "A single JSON object",
+    "Keys employeeId, department, and active",
+    "active is the boolean true",
+    "No SSN"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "employeeId",
+        "department",
+        "active"
+      ]
+    },
+    {
+      "id": "active-flag",
+      "type": "required_regex",
+      "pattern": "\"active\"\\s*:\\s*true\\b"
+    },
+    {
+      "id": "identity",
+      "type": "required_keywords",
+      "keywords": [
+        "E-17",
+        "Support"
+      ]
+    },
+    {
+      "id": "no-ssn",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "ssn",
+        "social security"
+      ]
+    }
+  ]
+}

@@ -114,18 +114,42 @@ export async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export interface ChatOptions {
+  temperature?: number;
+  maxTokens?: number;
+  /** Sent only when it is an integer. Omitted entirely when unset. */
+  seed?: number;
+  /**
+   * Ask for a JSON object. The field is sent only when
+   * `OPENAI_JSON_MODE=response_format`. Otherwise the caller parses JSON
+   * out of the text, which is what Ollama's OpenAI-compatible server accepts.
+   */
+  jsonObject?: boolean;
+}
+
+function wantsResponseFormat(options: ChatOptions | undefined): boolean {
+  return options?.jsonObject === true && process.env.OPENAI_JSON_MODE === "response_format";
+}
+
 export async function chatCompletion(
   messages: ChatMessage[],
-  options?: { temperature?: number; maxTokens?: number }
+  options?: ChatOptions
 ): Promise<LLMResponse> {
   const cfg = getConfig();
+  const sendFormat = wantsResponseFormat(options);
 
-  const body = {
+  const body: Record<string, unknown> = {
     model: cfg.model,
     messages,
     temperature: options?.temperature ?? 0.3,
     max_tokens: options?.maxTokens ?? 2048,
   };
+  if (options?.seed !== undefined && Number.isInteger(options.seed)) {
+    body.seed = options.seed;
+  }
+  if (sendFormat) {
+    body.response_format = { type: "json_object" };
+  }
 
   let res: Response | undefined;
   let errText = "unknown error";
@@ -142,6 +166,24 @@ export async function chatCompletion(
     if (res.ok) break;
 
     errText = await res.text().catch(() => "unknown error");
+    if (
+      sendFormat &&
+      res.status === 400 &&
+      /response_format|json_object|unknown field|unrecognized/i.test(errText)
+    ) {
+      delete body.response_format;
+      console.warn("[llm] provider rejected response_format; retrying without it");
+      res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) break;
+      errText = await res.text().catch(() => "unknown error");
+    }
     if (isTransientStatus(res.status) && attempt < MAX_TRANSIENT_RETRIES) {
       const delay = retryAfterMs(attempt, res.headers.get("Retry-After"));
       const reason = res.status === 429 ? "rate limited" : "unavailable";
@@ -190,11 +232,11 @@ export function extractJSON(text: string): string {
 
 export async function chatCompletionJSONDetailed<T>(
   messages: ChatMessage[],
-  options?: { temperature?: number; maxTokens?: number }
+  options?: ChatOptions
 ): Promise<{ data: T; usage: TokenUsage; attempts: number }> {
   let usage = emptyUsage();
   for (let attempt = 0; attempt < 2; attempt++) {
-    const resp = await chatCompletion(messages, options);
+    const resp = await chatCompletion(messages, { ...options, jsonObject: true });
     usage = addUsage(usage, resp.usage);
     try {
       const cleaned = extractJSON(resp.content);
@@ -224,7 +266,7 @@ export async function chatCompletionJSONDetailed<T>(
 
 export async function chatCompletionJSON<T>(
   messages: ChatMessage[],
-  options?: { temperature?: number; maxTokens?: number }
+  options?: ChatOptions
 ): Promise<T> {
   const { data } = await chatCompletionJSONDetailed<T>(messages, options);
   return data;

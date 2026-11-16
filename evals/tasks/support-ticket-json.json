@@ -1,0 +1,43 @@
+{
+  "id": "support-ticket-json",
+  "title": "Support ticket JSON",
+  "split": "train",
+  "category": "structured-output",
+  "prompt": "Return one JSON object and nothing else for ticket TCK-42. The priority is P2. The summary is exactly \"Search returns stale results\".\n\nInclude the keys id, priority, and summary. priority must be P1, P2, or P3. Do not include a password.",
+  "constraints": [
+    "A single JSON object",
+    "Keys id, priority, and summary",
+    "priority is P1, P2, or P3",
+    "No password"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "id",
+        "priority",
+        "summary"
+      ]
+    },
+    {
+      "id": "priority-value",
+      "type": "required_regex",
+      "pattern": "\"priority\"\\s*:\\s*\"P[123]\""
+    },
+    {
+      "id": "ticket-id",
+      "type": "required_keywords",
+      "keywords": [
+        "TCK-42"
+      ]
+    },
+    {
+      "id": "no-password",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "password"
+      ]
+    }
+  ]
+}

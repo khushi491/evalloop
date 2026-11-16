@@ -2,6 +2,7 @@
   "id": "incident-postmortem",
   "title": "Checkout outage postmortem",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write an internal postmortem for a 40-minute checkout outage on 2 March. Payments timed out because a database migration held a lock. Customers saw an error page. No data was lost. The follow-up is to add a lock timeout and a status-page update.\n\nRequirements:\n- At most 220 words.\n- Use these exact markdown headings: ## Summary, ## Impact, ## Root cause, ## Follow-ups.\n- State the severity.\n- Describe the system failure. Do not blame a person or call anyone incompetent.",
   "constraints": [
     "At most 220 words",

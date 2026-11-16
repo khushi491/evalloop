@@ -2,6 +2,7 @@
   "id": "security-advisory",
   "title": "Library security advisory",
   "split": "heldout",
+  "category": "constrained-writing",
   "prompt": "Write a short security advisory for a logging library. Versions 1.2.0 through 1.4.3 accept an oversized header and can crash the process. The fix is to upgrade to 1.4.4 or reject headers over 8 KB. Refer to CVE-2026-1001.\n\nRequirements:\n- At most 150 words.\n- Use these exact markdown headings: ## Affected versions, ## Mitigation.\n- Include the CVE id.\n- Do not include exploit code, a proof of concept, or a payload.",
   "constraints": [
     "At most 150 words",

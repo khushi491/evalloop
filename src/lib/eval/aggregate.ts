@@ -90,7 +90,12 @@ export function compareTraining(runs: TrainingRunRecord[]): Omit<
   const usable = runs.flatMap((run) => {
     const scored = scoredAttempts(run.attempts);
     if (scored.length === 0) return [];
-    return [{ before: scored[0]!, after: scored[scored.length - 1]!, attempts: run.attempts.length }];
+    const selected =
+      run.selectedAttempt == null
+        ? scored[scored.length - 1]!
+        : (scored.find((attempt) => attempt.index === run.selectedAttempt) ??
+          scored[scored.length - 1]!);
+    return [{ before: scored[0]!, after: selected, attempts: run.attempts.length }];
   });
   if (usable.length === 0) {
     return {

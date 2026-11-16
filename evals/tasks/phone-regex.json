@@ -1,0 +1,42 @@
+{
+  "id": "phone-regex",
+  "title": "Ten-digit phone pattern",
+  "split": "heldout",
+  "category": "code-regex",
+  "prompt": "Write one JavaScript regular expression and nothing else for a 10-digit phone number.\n\nAccept 555-010-1234, (555) 010-1234, and 5550101234. Reject 123, 555-010, abc-def-ghij, and 555-010-12345. Anchors are required. Do not call eval. Keep the answer under 50 words.",
+  "constraints": [
+    "One anchored regular expression",
+    "Accepts the three phone formats and rejects shorter or longer ones",
+    "Under 50 words and does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "word-limit",
+      "type": "max_words",
+      "max": 50
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "regex_spec",
+      "mustMatch": [
+        "555-010-1234",
+        "(555) 010-1234",
+        "5550101234"
+      ],
+      "mustNotMatch": [
+        "123",
+        "555-010",
+        "abc-def-ghij",
+        "555-010-12345"
+      ]
+    }
+  ]
+}

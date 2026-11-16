@@ -4,6 +4,15 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { assertChecksCompile, HardCheckSchema, type HardCheck } from "./checks";
 
+export const TASK_CATEGORIES = [
+  "structured-output",
+  "constrained-writing",
+  "summarization",
+  "code-regex",
+] as const;
+
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+
 const TaskSchema = z.object({
   id: z
     .string()
@@ -12,6 +21,7 @@ const TaskSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "id must be lowercase kebab-case"),
   title: z.string().trim().min(1),
   split: z.enum(["train", "heldout"]),
+  category: z.enum(TASK_CATEGORIES),
   prompt: z.string().trim().min(1),
   constraints: z.array(z.string().trim().min(1)).min(1),
   checks: z.array(HardCheckSchema).min(1),

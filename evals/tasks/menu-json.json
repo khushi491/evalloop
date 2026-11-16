@@ -1,0 +1,42 @@
+{
+  "id": "menu-json",
+  "title": "Cafe menu JSON",
+  "split": "heldout",
+  "category": "structured-output",
+  "prompt": "Return one JSON object and nothing else for the Lime Street cafe menu. Prices are in USD. Include one item named oatmeal.\n\nThe object must include the keys restaurant, currency, and items. currency must be USD. Do not include a card number.",
+  "constraints": [
+    "A single JSON object",
+    "Keys restaurant, currency, and items",
+    "currency is USD and the restaurant name is present",
+    "No card number"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "restaurant",
+        "currency",
+        "items"
+      ]
+    },
+    {
+      "id": "currency",
+      "type": "required_regex",
+      "pattern": "\"currency\"\\s*:\\s*\"USD\""
+    },
+    {
+      "id": "name",
+      "type": "required_keywords",
+      "keywords": [
+        "Lime Street",
+        "oatmeal"
+      ]
+    },
+    {
+      "id": "no-card",
+      "type": "forbidden_regex",
+      "pattern": "\\b\\d{13,19}\\b"
+    }
+  ]
+}

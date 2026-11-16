@@ -1,0 +1,49 @@
+{
+  "id": "slug-replace",
+  "title": "Whitespace to hyphen rule",
+  "split": "train",
+  "category": "code-regex",
+  "prompt": "Return one JSON object and nothing else that describes a JavaScript string replacement. Use the keys pattern, replacement, and flags.\n\nThe replacement must turn runs of whitespace into a single hyphen and leave other characters alone. flags may be an empty string or g.\n\nExamples the rule must satisfy: \"Hello World\" becomes \"Hello-World\", \"a  b\" becomes \"a-b\", and \"a-b\" stays \"a-b\". Do not call eval.",
+  "constraints": [
+    "JSON with pattern, replacement, and flags",
+    "Collapses whitespace to a hyphen",
+    "Does not call eval"
+  ],
+  "checks": [
+    {
+      "id": "shape",
+      "type": "json",
+      "requiredKeys": [
+        "pattern",
+        "replacement",
+        "flags"
+      ]
+    },
+    {
+      "id": "no-eval",
+      "type": "forbidden_substrings",
+      "substrings": [
+        "eval(",
+        "Function("
+      ]
+    },
+    {
+      "id": "behavior",
+      "type": "replace_spec",
+      "cases": [
+        {
+          "input": "Hello World",
+          "output": "Hello-World"
+        },
+        {
+          "input": "a  b",
+          "output": "a-b"
+        },
+        {
+          "input": "a-b",
+          "output": "a-b"
+        }
+      ]
+    }
+  ]
+}

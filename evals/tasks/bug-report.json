@@ -2,6 +2,7 @@
   "id": "bug-report",
   "title": "Search bug report",
   "split": "train",
+  "category": "constrained-writing",
   "prompt": "Write a bug report. In Firefox, searching for a quoted phrase returns no results, while the same search in Chrome returns the expected notes.\n\nRequirements:\n- At most 160 words.\n- Use these exact markdown headings: ## Steps to reproduce, ## Expected, ## Actual.\n- Name the browser.\n- Do not include a password, an api_key, or a token shaped like sk- followed by letters.",
   "constraints": [
     "At most 160 words",

@@ -74,19 +74,58 @@ describe("hard checks", () => {
     ).toMatch(/Missing keys: fixes/);
     expect(extractJsonDocument('\uFEFF{"ok":true}')).toEqual({ ok: true });
   });
+
+  it("checks a regular expression against samples and rejects an unsafe pattern", () => {
+    const checks: HardCheck[] = [
+      {
+        id: "behavior",
+        type: "regex_spec",
+        mustMatch: ["a@b.co"],
+        mustNotMatch: ["a@"],
+      },
+    ];
+    expect(runHardChecks("/^a@b\\.co$/", checks).results[0]?.pass).toBe(true);
+    expect(runHardChecks("/a/", checks).results[0]?.pass).toBe(false);
+    const unsafe = runHardChecks("/(a+)+/", checks);
+    expect(unsafe.results[0]?.pass).toBe(false);
+    expect(unsafe.results[0]?.message).toMatch(/unsafe/);
+  });
+
+  it("applies a JSON replacement rule to every case", () => {
+    const checks: HardCheck[] = [
+      {
+        id: "behavior",
+        type: "replace_spec",
+        cases: [
+          { input: "a/b/c", output: "a-b-c" },
+          { input: "no-slash", output: "no-slash" },
+        ],
+      },
+    ];
+    const output = JSON.stringify({ pattern: "/", replacement: "-", flags: "g" });
+    expect(runHardChecks(output, checks).results[0]?.pass).toBe(true);
+    expect(
+      runHardChecks(JSON.stringify({ pattern: "/", replacement: "-", flags: "" }), checks).results[0]?.pass
+    ).toBe(true);
+    expect(runHardChecks('{"pattern":"(a+)+","replacement":"-","flags":"g"}', checks).results[0]?.pass).toBe(
+      false
+    );
+  });
 });
 
 describe("task fixtures", () => {
   const tasks = loadTasks();
 
-  it("loads ten tasks, seven for training and three held out", () => {
-    expect(tasks).toHaveLength(10);
-    expect(tasks.filter((task) => task.split === "train")).toHaveLength(7);
-    expect(tasks.filter((task) => task.split === "heldout").map((task) => task.id)).toEqual([
-      "invoice-json",
-      "security-advisory",
-      "status-update",
-    ]);
+  it("loads thirty tasks, twenty for training and ten held out", () => {
+    expect(tasks).toHaveLength(30);
+    expect(tasks.filter((task) => task.split === "train")).toHaveLength(20);
+    expect(tasks.filter((task) => task.split === "heldout")).toHaveLength(10);
+    const heldOut = tasks.filter((task) => task.split === "heldout").map((task) => task.id);
+    expect(heldOut).toEqual(expect.arrayContaining(["invoice-json", "security-advisory", "status-update"]));
+    for (const category of ["structured-output", "constrained-writing", "summarization", "code-regex"]) {
+      expect(tasks.some((task) => task.split === "train" && task.category === category)).toBe(true);
+      expect(tasks.some((task) => task.split === "heldout" && task.category === category)).toBe(true);
+    }
     expect(new Set(tasks.map((task) => task.id)).size).toBe(tasks.length);
     for (const task of tasks) {
       expect(task.checks.length).toBeGreaterThan(0);
@@ -110,6 +149,7 @@ describe("task fixtures", () => {
         id: "broken",
         title: "Broken",
         split: "train",
+        category: "constrained-writing",
         prompt: "Return text.",
         constraints: ["Must match a pattern"],
         checks: [{ id: "bad", type: "required_regex", pattern: "(" }],
