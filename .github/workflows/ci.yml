@@ -54,5 +54,5 @@ jobs:
       - name: Sweep estimate
         run: pnpm exec tsx scripts/sweep.ts --estimate --plan minimal --seeds 1
 
-      - name: Build
-        run: pnpm build
+      - name: Build with no app environment variables
+        run: env -u DATABASE_URL -u OPENAI_API_KEY -u USE_SIMULATION -u OPENAI_BASE_URL -u OPENAI_MODEL -u OPENAI_JSON_MODE -u VERCEL pnpm build

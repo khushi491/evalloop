@@ -1,57 +1,21 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { readProjectRun, removeProjectRun } from "@/lib/runs";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ runId: string }> }
 ) {
   const { runId } = await params;
-
-  const run = await prisma.projectRun.findUnique({
-    where: { id: runId },
-    include: {
-      attempts: { orderBy: { index: "asc" } },
-      policyVersions: { orderBy: { version: "asc" } },
-    },
-  });
-
-  if (!run) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  try {
+    const run = await readProjectRun(runId);
+    if (!run) {
+      return NextResponse.json({ error: "Run not found" }, { status: 404 });
+    }
+    return NextResponse.json(run);
+  } catch (err) {
+    console.error("[runs] read failed", runId, err);
+    return NextResponse.json({ error: "Failed to load run" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    id: run.id,
-    title: run.title,
-    taskText: run.taskText,
-    maxAttempts: run.maxAttempts,
-    targetScore: run.targetScore,
-    status: run.status,
-    createdAt: run.createdAt.toISOString(),
-    attempts: run.attempts.map((a) => {
-      const violData = a.violationsJson
-        ? JSON.parse(a.violationsJson)
-        : null;
-      const isWrapped = violData && "violations" in violData;
-      return {
-        id: a.id,
-        index: a.index,
-        outputText: a.outputText,
-        createdAt: a.createdAt.toISOString(),
-        scoreTotal: a.scoreTotal,
-        scoreBreakdown: a.scoreBreakdownJson
-          ? JSON.parse(a.scoreBreakdownJson)
-          : null,
-        violations: isWrapped ? violData.violations : violData,
-        notes: isWrapped ? violData.notes : null,
-      };
-    }),
-    policyVersions: run.policyVersions.map((p) => ({
-      id: p.id,
-      version: p.version,
-      policy: JSON.parse(p.policyJson),
-      createdAt: p.createdAt.toISOString(),
-    })),
-  });
 }
 
 export async function DELETE(
@@ -59,9 +23,11 @@ export async function DELETE(
   { params }: { params: Promise<{ runId: string }> }
 ) {
   const { runId } = await params;
-
   try {
-    await prisma.projectRun.delete({ where: { id: runId } });
+    const removed = await removeProjectRun(runId);
+    if (!removed) {
+      return NextResponse.json({ error: "Run not found" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete run" }, { status: 500 });

@@ -18,6 +18,14 @@ function formatPercent(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
+export function formatReportedCells(cells: ScoreCells | null): [string, string, string] {
+  return formatCells(cells);
+}
+
+export function formatReportedAttempts(count: number): string {
+  return formatAttempts(count);
+}
+
 function formatScore(score: number): string {
   return score.toFixed(1);
 }
@@ -36,10 +44,18 @@ function temperatureLine(results: EvalResults): string {
   return `runner ${temperature.runner}, evaluator ${temperature.evaluator}, patcher ${temperature.patcher}`;
 }
 
+export function describeTemperatures(results: EvalResults): string {
+  return temperatureLine(results);
+}
+
 function maxCallsLabel(results: EvalResults): string {
   const value = results.config.maxCalls;
   if (value === null || value === undefined) return "none";
   return String(value);
+}
+
+export function describeMaxCalls(results: EvalResults): string {
+  return maxCallsLabel(results);
 }
 
 function priceSentence(results: EvalResults): string {
@@ -48,6 +64,10 @@ function priceSentence(results: EvalResults): string {
     return `Price table: ${price.model}. No token price is configured for ${results.config.model}, so estimated cost is $0. ${price.note}`;
   }
   return `Price table for ${price.model}, checked ${price.checkedOn} (${price.source}): input ${formatUsd(price.inputUsdPerMillion)} per 1M tokens, cached input ${formatUsd(price.cachedInputUsdPerMillion)} per 1M tokens, output ${formatUsd(price.outputUsdPerMillion)} per 1M tokens. ${price.note}`;
+}
+
+export function describeResultPrice(results: EvalResults): string {
+  return priceSentence(results);
 }
 
 function errorLines(prefix: string, id: string, errors: string[]): string[] {

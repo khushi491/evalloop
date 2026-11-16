@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ArrowLeft, Play } from "lucide-react";
 import Link from "next/link";
+import { saveBrowserRun } from "@/lib/browser-runs";
+import type { RunResponse } from "@/lib/run-types";
 
 const PRESETS: Record<string, { title: string; taskText: string }> = {
   "": { title: "", taskText: "" },
@@ -50,6 +53,22 @@ export default function NewRunPage() {
   const [maxAttempts, setMaxAttempts] = useState(5);
   const [targetScore, setTargetScore] = useState(90);
   const [submitting, setSubmitting] = useState(false);
+  const [demoLabel, setDemoLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/mode")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setDemoLabel(typeof data.demoLabel === "string" ? data.demoLabel : null);
+      })
+      .catch(() => {
+        if (!cancelled) setDemoLabel(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function applyPreset(key: string) {
     setPreset(key);
@@ -73,11 +92,30 @@ export default function NewRunPage() {
           targetScore,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to create run");
+      const data = (await res.json()) as { error?: string; runId?: string; run?: RunResponse };
+      if (!res.ok || !data.runId) throw new Error(data.error ?? "Failed to create run");
 
       if (autoExecute) {
-        await fetch(`/api/runs/${data.runId}/execute`, { method: "POST" });
+        const exec = await fetch(`/api/runs/${data.runId}/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            data.run
+              ? {
+                  title: data.run.title,
+                  taskText: data.run.taskText,
+                  maxAttempts: data.run.maxAttempts,
+                  targetScore: data.run.targetScore,
+                  createdAt: data.run.createdAt,
+                }
+              : {}
+          ),
+        });
+        const body = (await exec.json()) as RunResponse & { error?: string };
+        if (!exec.ok) throw new Error(body.error ?? "Execution failed");
+        if (body.memory) saveBrowserRun(body);
+      } else if (data.run?.memory) {
+        saveBrowserRun(data.run);
       }
 
       router.push(`/runs/${data.runId}`);
@@ -94,6 +132,9 @@ export default function NewRunPage() {
         <ArrowLeft className="h-4 w-4" />
         Back to dashboard
       </Link>
+      <div className="mb-4">
+        <DemoModeBanner label={demoLabel} />
+      </div>
 
       <Card>
         <CardHeader>
