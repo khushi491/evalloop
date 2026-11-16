@@ -9,7 +9,7 @@ import type { EvalResults } from "../src/lib/eval/types";
 const HELP = `Turn eval results into tables and figures.
 
 Usage:
-  pnpm analyze -- --input FILE [--input FILE] --out paper/figures
+  pnpm analyze -- --input FILE [--input FILE] --out evals/figures
 
 FILE may be one eval results JSON or a sweep JSONL.
 A dry run is labeled MOCK DATA on every figure. A directory that mixes a dry
@@ -42,7 +42,7 @@ function loadInput(file: string): EvalResults[] {
 
 function main() {
   const inputs: string[] = [];
-  let out = "paper/figures";
+  let out = "evals/figures";
   const rest = process.argv.slice(2);
   while (rest.length > 0) {
     const token = rest.shift()!;

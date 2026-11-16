@@ -115,7 +115,7 @@ pnpm build
 
 The harness measures the same loop the app runs (`runImprovementLoop` in `src/lib/improvement-loop.ts`). The runner drafts, the evaluator scores, and the patcher updates the policy. In the app, that loop stops when the judge score reaches the target. In the harness, it stops only when the blended total reaches the target and every hard check passes, or when the attempt budget runs out.
 
-Fixtures live in `evals/tasks/`. Twenty are training tasks. Ten are held out, including `security-advisory`, `invoice-json`, and `status-update`. The categories are structured output, constrained writing, summarization with required facts, and small regex or replacement rules. Each file has a prompt, the constraints in plain language, and hard checks that run in process: word limits, required headings and keywords, forbidden text, JSON shape, and, for the regex tasks, accept and reject samples. Hard checks are recorded beside the judge. They are not added to the judge prompt. The default patcher feedback sends hard-check failures next to the judge feedback. Held-out prompts are still never sent to the patcher. `docs/EXPERIMENTS.md` is the reproduction guide for the method comparison.
+Fixtures live in `evals/tasks/`. Twenty are training tasks. Ten are held out, including `security-advisory`, `invoice-json`, and `status-update`. The categories are structured output, constrained writing, summarization with required facts, and small regex or replacement rules. Each file has a prompt, the constraints in plain language, and hard checks that run in process: word limits, required headings and keywords, forbidden text, JSON shape, and, for the regex tasks, accept and reject samples. Hard checks are recorded beside the judge. They are not added to the judge prompt. The default patcher feedback sends hard-check failures next to the judge feedback. Held-out prompts are still never sent to the patcher. `pnpm sweep` and `pnpm analyze` are EvalLoop's experiment and benchmark harness. The sweep compares methods, stopping rules, and patcher feedback across seeds. The analysis script turns a results file into tables and figures.
 
 ### What a run records
 
@@ -160,7 +160,7 @@ pnpm eval -- --resume evals/results/<timestamp>.json --max-calls 20 --delay-ms 1
 
 `OPENAI_API_KEY` is read from the environment or from `.env`. Do not put the key on the command line. A variable set in the shell wins over `.env`.
 
-Other flags: `--tasks id,id`, `--target 90`, `--out evals/results`, `--dry-run`, `--method`, `--stopping`, `--feedback`, `--seed`, `--help`. `--method` is `single-shot`, `best-of-n`, `self-refine`, or `policy`. Every method shares the policy loop's per-task call budget. `pnpm sweep` runs a method by condition by seed matrix and can resume. See `docs/EXPERIMENTS.md`.
+Other flags: `--tasks id,id`, `--target 90`, `--out evals/results`, `--dry-run`, `--method`, `--stopping`, `--feedback`, `--seed`, `--help`. `--method` is `single-shot`, `best-of-n`, `self-refine`, or `policy`. Every method shares the policy loop's per-task call budget. `pnpm sweep` runs a method by condition by seed matrix and can resume. `pnpm analyze` reads one or more results JSON files, or a sweep JSONL file, and writes tables and figures. The default output directory is `evals/figures/`, which is gitignored except for `.gitkeep`. A dry run is labeled mock. Do not check mock figures in as measured results.
 
 Dry run uses the built-in simulation client and does not need an API key:
 
@@ -226,14 +226,17 @@ src/
     ├── simulate.ts        # Simulation mode mock data
     ├── improvement-loop.ts # Shared runner → evaluator → patcher loop
     ├── execute.ts         # Persists the loop for a project run
-    └── eval/              # Hard checks, cost, suite, and the results report
+    └── eval/              # Hard checks, cost, suite, sweep, analysis, and the results report
 evals/
 ├── tasks/                 # Train and held-out fixtures
 ├── results/               # Timestamped results JSON (gitignored, except the measured 2026-11-14 file)
+├── figures/               # Analysis tables and figures (gitignored, except .gitkeep)
 └── RESULTS.md             # Report generated from a results file
 scripts/
 ├── eval.ts                # `pnpm eval`
-└── eval-report.ts         # `pnpm eval:report`
+├── eval-report.ts         # `pnpm eval:report`
+├── sweep.ts               # `pnpm sweep`
+└── analyze.ts             # `pnpm analyze`
 ```
 
 ## Data Models
