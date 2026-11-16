@@ -73,7 +73,18 @@ DATABASE_URL="file:./dev.db"
 USE_SIMULATION=true
 ```
 
-**Simulation mode** (`USE_SIMULATION=true`): The app runs with built-in mock data — no API key needed. The demo preset scores attempts 52, 72, 84, and 92, with outputs, violations, and policy patches.
+**Simulation mode** (`USE_SIMULATION=true`): The app runs with built-in mock data — no API key needed. The demo preset scores attempts 52, 72, 84, and 92, with outputs, violations, and policy patches. The screen shows `Demo mode: simulated model, not live results`. Those scores are the scripted demo, not the measured evaluation.
+
+**Demo mode** turns that simulation on by itself, and keeps runs in memory instead of SQLite, when the process cannot use the real path:
+
+- No usable `OPENAI_API_KEY` (missing, blank, `sk-placeholder`, or `sk-your-key-here`) and no `DATABASE_URL`
+- `VERCEL=1` when either the key or `DATABASE_URL` is missing
+
+A missing `DATABASE_URL` also skips Prisma, including locally when a key is set, so the pages do not 500 trying to open SQLite. On that local path the model client still follows `USE_SIMULATION`. Local development with `DATABASE_URL` and a usable key keeps the current Prisma behavior. A placeholder key plus `USE_SIMULATION=true` and `DATABASE_URL` does too.
+
+Vercel sets `VERCEL=1`. A Hobby deploy with no environment variables builds and serves demo mode. `pnpm build` runs `prisma generate` first and, when `DATABASE_URL` is unset, uses `file:./prisma/dev.db` only so the client can be generated. It does not need an API key or a database file.
+
+Measured numbers are rendered from the committed results file at build time on `/` and `/results`. Demo runs never fill those tables.
 
 **Real LLM mode** (`USE_SIMULATION=false`): Set a valid `OPENAI_API_KEY` and the app calls the LLM for real. `OPENAI_BASE_URL` and `OPENAI_MODEL` select any OpenAI-compatible endpoint.
 
@@ -109,7 +120,7 @@ pnpm typecheck
 pnpm build
 ```
 
-`pnpm test` runs the Vitest suite. It covers policy patches, rubric scoring, schema checks, the execution loop, and the eval harness. Simulation mode is on and the LLM client is mocked, so the suite does not call an external API. CI runs those checks and a `pnpm eval -- --dry-run` smoke test. It does not call a paid API.
+`pnpm test` runs the Vitest suite. It covers policy patches, rubric scoring, schema checks, the execution loop, demo-mode selection, and the eval harness. Simulation mode is on and the LLM client is mocked, so the suite does not call an external API. CI runs those checks, a `pnpm eval -- --dry-run` smoke test, and `pnpm build` with `DATABASE_URL`, `OPENAI_API_KEY`, and `USE_SIMULATION` removed. It does not call a paid API.
 
 ## Evaluation
 
@@ -176,7 +187,7 @@ The checked-in report is the Gemini free-tier run (`gemini-3.5-flash`) measured 
 
 1. Open the app at `localhost:3000`
 2. Click **"Quick Demo"** on the dashboard — this creates and executes the "Double charge support reply" preset
-3. Watch the run detail page auto-update as attempts are processed
+3. Watch the run detail page. When demo mode is on, the page shows `Demo mode: simulated model, not live results` and the scores are the scripted simulation. The measured tables on the home page and `/results` are a separate committed evaluation.
 4. Once complete, explore:
    - **Compare tab**: See Attempt 1 vs Best Attempt side-by-side
    - **Evaluator tab**: Score breakdown bars (0-5 per category) + violations list
@@ -209,7 +220,8 @@ src/
 │   ├── api/runs/          # API route handlers
 │   ├── runs/new/          # New run form
 │   ├── runs/[id]/         # Run detail page
-│   ├── page.tsx           # Dashboard
+│   ├── results/           # Measured evaluation tables
+│   ├── page.tsx           # Landing page and run list
 │   └── layout.tsx         # Root layout
 ├── components/
 │   ├── ui/                # shadcn/ui-style components

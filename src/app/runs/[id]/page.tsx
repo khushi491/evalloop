@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ArrowLeft, RotateCcw, Loader2, Trash2 } from "lucide-react";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,95 +19,133 @@ import { ScoreChart } from "@/components/score-chart";
 import { CompareView } from "@/components/compare-view";
 import { EvaluatorView } from "@/components/evaluator-view";
 import { PolicyDiffView } from "@/components/policy-diff-view";
+import { loadBrowserRun, preferRun, removeBrowserRun, saveBrowserRun } from "@/lib/browser-runs";
+import type { RunAttempt, RunResponse } from "@/lib/run-types";
 
-interface Attempt {
-  id: string;
-  index: number;
-  outputText: string;
-  createdAt: string;
-  scoreTotal: number | null;
-  scoreBreakdown: Record<string, number> | null;
-  violations: { type: string; message: string; severity: string }[] | null;
-  notes: string | null;
-}
-
-interface PolicyVersionData {
-  id: string;
-  version: number;
-  policy: Record<string, unknown>;
-  createdAt: string;
-}
-
-interface RunDetail {
-  id: string;
-  title: string;
-  taskText: string;
-  maxAttempts: number;
-  targetScore: number;
-  status: string;
-  createdAt: string;
-  attempts: Attempt[];
-  policyVersions: PolicyVersionData[];
-}
+const autoJobs = new Map<string, Promise<void>>();
 
 export default function RunDetailPage() {
   const params = useParams();
   const router = useRouter();
   const runId = params.id as string;
-  const [run, setRun] = useState<RunDetail | null>(null);
+  const [run, setRun] = useState<RunResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [selectedAttempt, setSelectedAttempt] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
+  const runRef = useRef(run);
+  runRef.current = run;
+
+  const applyRun = useCallback((data: RunResponse) => {
+    setRun(data);
+    if (data.memory) saveBrowserRun(data);
+    setSelectedAttempt((current) => {
+      if (data.attempts.length === 0) return 0;
+      const last = data.attempts.length - 1;
+      return current >= data.attempts.length ? last : current === 0 && data.attempts.length > 1 ? last : current;
+    });
+  }, []);
+
   const fetchRun = useCallback(async () => {
     try {
       const res = await fetch(`/api/runs/${runId}`);
-      if (!res.ok) throw new Error("Failed to load run");
-      const data = await res.json();
-      setRun(data);
-      if (data.attempts?.length > 0) {
-        setSelectedAttempt(data.attempts.length - 1);
+      const server = res.ok ? ((await res.json()) as RunResponse) : null;
+      const data = preferRun(server, loadBrowserRun(runId));
+      if (!data) {
+        setRun(null);
+        setError("Failed to load run");
+        return;
       }
+      setError(null);
+      applyRun(data);
     } catch {
-      setError("Failed to load run");
+      const local = loadBrowserRun(runId);
+      if (local) {
+        setError(null);
+        applyRun(local);
+      } else {
+        setError("Failed to load run");
+      }
     } finally {
       setLoading(false);
     }
-  }, [runId]);
+  }, [applyRun, runId]);
 
   useEffect(() => {
     fetchRun();
   }, [fetchRun]);
 
   useEffect(() => {
-    if (!run || run.status !== "running") return;
+    if (!run || run.status !== "running" || executing) return;
     const interval = setInterval(fetchRun, 2000);
     return () => clearInterval(interval);
-  }, [run?.status, fetchRun]);
+  }, [run, executing, fetchRun]);
 
-  async function handleExecute() {
+  const handleExecute = useCallback(async () => {
     setExecuting(true);
     setError(null);
+    setRun((current) => (current ? { ...current, status: "running" } : current));
+    const current = runRef.current;
     try {
       const res = await fetch(`/api/runs/${runId}/execute`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          current
+            ? {
+                title: current.title,
+                taskText: current.taskText,
+                maxAttempts: current.maxAttempts,
+                targetScore: current.targetScore,
+                createdAt: current.createdAt,
+              }
+            : {}
+        ),
       });
+      const data = (await res.json()) as RunResponse & { error?: string };
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error ?? "Execution failed");
       }
-      await fetchRun();
+      setError(null);
+      applyRun(data);
+      setSelectedAttempt(Math.max(0, data.attempts.length - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Execution failed");
+      try {
+        const res = await fetch(`/api/runs/${runId}`);
+        if (res.ok) {
+          applyRun((await res.json()) as RunResponse);
+        }
+      } catch {
+        // Keep the execution error visible.
+      }
     } finally {
       setExecuting(false);
     }
-  }
+  }, [applyRun, runId]);
+
+  useEffect(() => {
+    if (!run?.memory) return;
+    if (run.attempts.length > 0) return;
+    if (run.status === "running" || run.status === "completed" || run.status === "failed") return;
+    if (new URLSearchParams(window.location.search).get("auto") !== "1") return;
+    const existing = autoJobs.get(run.id);
+    if (existing) {
+      void existing.then(() => fetchRun());
+      return;
+    }
+    const job = handleExecute();
+    autoJobs.set(run.id, job);
+    void job.finally(() => {
+      autoJobs.delete(run.id);
+    });
+  }, [run, handleExecute, fetchRun]);
 
   async function handleDelete() {
     if (!confirm("Delete this run and all its data?")) return;
     await fetch(`/api/runs/${runId}`, { method: "DELETE" });
+    removeBrowserRun(runId);
     router.push("/");
   }
 
@@ -126,7 +165,7 @@ export default function RunDetailPage() {
     );
   }
 
-  const bestAttempt = run.attempts.reduce<Attempt | null>((best, a) => {
+  const bestAttempt = run.attempts.reduce<RunAttempt | null>((best, a) => {
     if (a.scoreTotal === null) return best;
     if (!best || (best.scoreTotal ?? 0) < a.scoreTotal) return a;
     return best;
@@ -182,7 +221,8 @@ export default function RunDetailPage() {
         </div>
       )}
 
-      <div className="mb-6">
+      <div className="mb-6 space-y-4">
+        <DemoModeBanner label={run.demoLabel} />
         <h1 className="text-2xl font-bold">{run.title}</h1>
         <p className="mt-1 text-sm text-zinc-400">
           {new Date(run.createdAt).toLocaleString()} ·{" "}
@@ -237,9 +277,8 @@ export default function RunDetailPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-12 gap-6">
-          {/* Left: Attempts Timeline */}
-          <div className="col-span-3 space-y-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="space-y-2 lg:col-span-3">
             <h3 className="mb-3 text-sm font-semibold text-zinc-400 uppercase tracking-wider">
               Attempts
             </h3>
@@ -277,7 +316,7 @@ export default function RunDetailPage() {
           </div>
 
           {/* Center: Tabs */}
-          <div className="col-span-6">
+          <div className="lg:col-span-6">
             <Tabs defaultValue="compare">
               <TabsList className="w-full">
                 <TabsTrigger value="compare">Compare</TabsTrigger>
@@ -325,7 +364,7 @@ export default function RunDetailPage() {
           </div>
 
           {/* Right: Score Chart */}
-          <div className="col-span-3 space-y-4">
+          <div className="space-y-4 lg:col-span-3">
             <ScoreChart
               attempts={run.attempts}
               targetScore={run.targetScore}

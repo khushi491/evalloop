@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "node scripts/prisma-generate.mjs && next build",
+    "postinstall": "node scripts/prisma-generate.mjs",
     "start": "next start",
     "lint": "eslint src tests scripts vitest.config.ts",
     "typecheck": "tsc --noEmit",

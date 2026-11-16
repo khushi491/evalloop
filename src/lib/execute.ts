@@ -1,32 +1,41 @@
 import { prisma } from "./db";
+import { attachMode, usesMemoryStore, usesSimulationClient } from "./demo-mode";
 import { runImprovementLoop } from "./improvement-loop";
 import { chatCompletion, chatCompletionJSON } from "./llm";
+import {
+  editMemoryRun,
+  getMemoryRun,
+  memoryAttempt,
+  memoryPolicy,
+} from "./memory-store";
+import {
+  buildEvaluatorMessages,
+  buildPatcherMessages,
+  buildRunnerMessages,
+} from "./prompts";
+import { readPrismaRun } from "./runs";
 import {
   DEFAULT_POLICY,
   EvaluatorOutputSchema,
   PatchOutputSchema,
-  type Policy,
   type EvaluatorOutput,
   type PatchOutput,
+  type Policy,
 } from "./schemas";
 import {
-  buildRunnerMessages,
-  buildEvaluatorMessages,
-  buildPatcherMessages,
-} from "./prompts";
-import {
-  simulateRunner,
   simulateEvaluator,
   simulatePatcher,
+  simulateRunner,
 } from "./simulate";
 import {
   EVALUATOR_TEMPERATURE,
   PATCHER_TEMPERATURE,
   RUNNER_TEMPERATURE,
 } from "./temperatures";
+import type { RunResponse } from "./run-types";
 
-function isSimulation(): boolean {
-  return process.env.USE_SIMULATION === "true";
+function simulationEnabled(): boolean {
+  return usesSimulationClient();
 }
 
 async function runRunner(
@@ -34,7 +43,7 @@ async function runRunner(
   taskText: string,
   policy: Policy
 ): Promise<string> {
-  if (isSimulation()) {
+  if (simulationEnabled()) {
     return simulateRunner(attemptIndex, taskText, policy);
   }
   const messages = buildRunnerMessages(taskText, policy);
@@ -48,7 +57,7 @@ async function runEvaluator(
   outputText: string,
   policy: Policy
 ): Promise<EvaluatorOutput> {
-  const raw = isSimulation()
+  const raw = simulationEnabled()
     ? await simulateEvaluator(attemptIndex)
     : await chatCompletionJSON<unknown>(
         buildEvaluatorMessages(taskText, outputText, policy),
@@ -64,7 +73,7 @@ async function runPatcher(
   evaluation: EvaluatorOutput,
   policy: Policy
 ): Promise<PatchOutput> {
-  const raw = isSimulation()
+  const raw = simulationEnabled()
     ? await simulatePatcher(attemptIndex)
     : await chatCompletionJSON<unknown>(
         buildPatcherMessages(taskText, outputText, evaluation, policy),
@@ -73,67 +82,147 @@ async function runPatcher(
   return PatchOutputSchema.parse(raw);
 }
 
-export async function executeRun(runId: string) {
+async function improve(args: {
+  taskText: string;
+  maxAttempts: number;
+  targetScore: number;
+  onInitialPolicy: (policy: Policy) => Promise<void>;
+  onAttempt: (attempt: {
+    index: number;
+    outputText: string;
+    scoreTotal: number;
+    evaluation: EvaluatorOutput;
+  }) => Promise<void>;
+  onPolicy: (policy: Policy) => Promise<void>;
+}): Promise<void> {
+  const initialPolicy: Policy = { ...DEFAULT_POLICY };
+  await args.onInitialPolicy(initialPolicy);
+  await runImprovementLoop({
+    taskText: args.taskText,
+    initialPolicy,
+    maxAttempts: args.maxAttempts,
+    targetScore: args.targetScore,
+    client: {
+      runner: runRunner,
+      evaluator: runEvaluator,
+      patcher: runPatcher,
+    },
+    hooks: {
+      onAttempt: async (attempt) => {
+        await args.onAttempt(attempt);
+      },
+      onPolicy: async (policy) => {
+        await args.onPolicy(policy);
+      },
+    },
+  });
+}
+
+async function executeMemoryRun(runId: string): Promise<RunResponse> {
+  const existing = getMemoryRun(runId);
+  if (!existing) throw new Error(`Run ${runId} not found`);
+
+  editMemoryRun(runId, (run) => {
+    run.attempts = [];
+    run.policyVersions = [];
+    run.status = "running";
+  });
+
+  try {
+    await improve({
+      taskText: existing.taskText,
+      maxAttempts: existing.maxAttempts,
+      targetScore: existing.targetScore,
+      onInitialPolicy: async (policy) => {
+        editMemoryRun(runId, (run) => {
+          run.policyVersions.push(memoryPolicy(policy));
+        });
+      },
+      onAttempt: async (attempt) => {
+        editMemoryRun(runId, (run) => {
+          run.attempts.push(
+            memoryAttempt({
+              index: attempt.index,
+              outputText: attempt.outputText,
+              scoreTotal: attempt.scoreTotal,
+              scoreBreakdown: attempt.evaluation.score_breakdown as Record<string, number>,
+              violations: attempt.evaluation.violations,
+              notes: attempt.evaluation.notes,
+            })
+          );
+        });
+      },
+      onPolicy: async (policy) => {
+        editMemoryRun(runId, (run) => {
+          run.policyVersions.push(memoryPolicy(policy));
+        });
+      },
+    });
+    editMemoryRun(runId, (run) => {
+      run.status = "completed";
+    });
+  } catch (err) {
+    editMemoryRun(runId, (run) => {
+      run.status = "failed";
+    });
+    throw err;
+  }
+
+  const done = getMemoryRun(runId);
+  if (!done) throw new Error("Run not found");
+  return attachMode(done);
+}
+
+async function executePrismaRun(runId: string): Promise<RunResponse> {
   const run = await prisma.projectRun.findUnique({ where: { id: runId } });
   if (!run) throw new Error(`Run ${runId} not found`);
 
   await prisma.attempt.deleteMany({ where: { runId } });
   await prisma.policyVersion.deleteMany({ where: { runId } });
-
   await prisma.projectRun.update({
     where: { id: runId },
     data: { status: "running" },
   });
 
-  const initialPolicy: Policy = { ...DEFAULT_POLICY };
-
-  await prisma.policyVersion.create({
-    data: {
-      runId,
-      version: 1,
-      policyJson: JSON.stringify(initialPolicy),
-    },
-  });
-
   try {
-    await runImprovementLoop({
+    await improve({
       taskText: run.taskText,
-      initialPolicy,
       maxAttempts: run.maxAttempts,
       targetScore: run.targetScore,
-      client: {
-        runner: runRunner,
-        evaluator: runEvaluator,
-        patcher: runPatcher,
+      onInitialPolicy: async (policy) => {
+        await prisma.policyVersion.create({
+          data: {
+            runId,
+            version: 1,
+            policyJson: JSON.stringify(policy),
+          },
+        });
       },
-      hooks: {
-        onAttempt: async (attempt) => {
-          await prisma.attempt.create({
-            data: {
-              runId,
-              index: attempt.index,
-              outputText: attempt.outputText,
-              scoreTotal: attempt.scoreTotal,
-              scoreBreakdownJson: JSON.stringify(attempt.evaluation.score_breakdown),
-              violationsJson: JSON.stringify({
-                violations: attempt.evaluation.violations,
-                notes: attempt.evaluation.notes,
-              }),
-            },
-          });
-        },
-        onPolicy: async (policy) => {
-          await prisma.policyVersion.create({
-            data: {
-              runId,
-              version: policy.version,
-              policyJson: JSON.stringify(policy),
-            },
-          });
-        },
+      onAttempt: async (attempt) => {
+        await prisma.attempt.create({
+          data: {
+            runId,
+            index: attempt.index,
+            outputText: attempt.outputText,
+            scoreTotal: attempt.scoreTotal,
+            scoreBreakdownJson: JSON.stringify(attempt.evaluation.score_breakdown),
+            violationsJson: JSON.stringify({
+              violations: attempt.evaluation.violations,
+              notes: attempt.evaluation.notes,
+            }),
+          },
+        });
+      },
+      onPolicy: async (policy) => {
+        await prisma.policyVersion.create({
+          data: {
+            runId,
+            version: policy.version,
+            policyJson: JSON.stringify(policy),
+          },
+        });
       },
     });
-
     await prisma.projectRun.update({
       where: { id: runId },
       data: { status: "completed" },
@@ -146,50 +235,12 @@ export async function executeRun(runId: string) {
     throw err;
   }
 
-  return loadRunDetail(runId);
+  const loaded = await readPrismaRun(runId);
+  if (!loaded) throw new Error("Run not found");
+  return loaded;
 }
 
-async function loadRunDetail(runId: string) {
-  const run = await prisma.projectRun.findUnique({
-    where: { id: runId },
-    include: {
-      attempts: { orderBy: { index: "asc" } },
-      policyVersions: { orderBy: { version: "asc" } },
-    },
-  });
-  if (!run) throw new Error("Run not found");
-
-  return {
-    id: run.id,
-    title: run.title,
-    taskText: run.taskText,
-    maxAttempts: run.maxAttempts,
-    targetScore: run.targetScore,
-    status: run.status,
-    createdAt: run.createdAt.toISOString(),
-    attempts: run.attempts.map((a) => {
-      const violData = a.violationsJson
-        ? JSON.parse(a.violationsJson)
-        : null;
-      const isWrapped = violData && "violations" in violData;
-      return {
-        id: a.id,
-        index: a.index,
-        outputText: a.outputText,
-        createdAt: a.createdAt.toISOString(),
-        scoreTotal: a.scoreTotal,
-        scoreBreakdown: a.scoreBreakdownJson
-          ? JSON.parse(a.scoreBreakdownJson)
-          : null,
-        violations: isWrapped ? violData.violations : violData,
-        notes: isWrapped ? violData.notes : null,
-      };
-    }),
-    policyVersions: run.policyVersions.map((p) => ({
-      id: p.id,
-      version: p.version,
-      policy: JSON.parse(p.policyJson),
-      createdAt: p.createdAt.toISOString(),
-    })),
-  };
+export async function executeRun(runId: string): Promise<RunResponse> {
+  if (usesMemoryStore()) return executeMemoryRun(runId);
+  return executePrismaRun(runId);
 }
